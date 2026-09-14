@@ -8,5 +8,5 @@ merge(renyi_exetime[c(1, 2, 4)], kl_exetime[c(1, 2, 4)], by = "dim") %>%
   kbl(col.names = c("Dimension", "Number of iterations", "Execution time",
                     "Number of iterations", "Execution time"),
       digits = c(0, 0, 3, 0, 3)) %>%
-  add_header_above(c(" " = 1, "Rényi divergence of order $\\\\beta=0.25$" = 2,
+  add_header_above(c(" " = 1, "Rényi divergence of order β=0.25" = 2,
                      "Kullback-Leibler divergence" = 2), escape = FALSE)

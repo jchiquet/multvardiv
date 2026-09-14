@@ -11,11 +11,12 @@ if (knitr::is_html_output()) {
 # Table of the execution times
 
 library(kableExtra)
-data.frame(precision, renyi_exetime[c(2, 4)], kl_exetime[c(2, 4)]) %>%
+tbl <- data.frame(precision, renyi_exetime[c(2, 4)], kl_exetime[c(2, 4)]) %>%
   kbl(
     col.names = c("Precision", "Number of iterations", "Execution time",
                   "Number of iterations", "Execution time"),
     digits = c(16, 0, 4, 0, 4), escape = FALSE
   ) %>%
-  add_header_above(c(" " = 1, "Rényi divergence of order $\\\\beta=0.25$" = 2,
+  add_header_above(c(" " = 1, "Rényi divergence of order β=0.25" = 2,
                      "Kullback-Leibler divergence" = 2), escape = FALSE)
+tbl
