@@ -1,0 +1,3465 @@
+```{r}
+#| include: false
+library(multvardiv)
+```
+
+# Introduction
+
+Statistical divergences -- including the Kullback–Leibler (KLD), Rényi (RD),
+Bhattacharyya (BD), and Hellinger (HD) divergences -- serve as essential tools
+in information theory and machine learning. These measures quantify
+the 'distance' or dissimilarity between probability distributions,
+enabling a wide range of applications. Widely regarded as a cornerstone
+of information theory, the KLD measures the relative entropy between two
+distributions, effectively capturing how one distribution differs from a
+reference distribution. The KLD is ubiquitous in model training,
+reinforcement learning, and variational inference.
+<!--The Kullback–Leibler divergence (KLD) is widely used in
+information theory, pattern recognition, and machine learning (for
+example, in training generative models and reinforcement learning), as
+well as in model comparison, variational inference, and other related
+fields in computer science. It is used to assess the effectiveness of
+probabilistic models, compare distributions, and perform tasks such as
+feature selection. --> A generalization of the KLD, the Rényi divergence
+extends the concept of divergence to a family of measures parameterized
+by an order $\beta$. This flexibility makes it invaluable for privacy
+and security (differential privacy) and hypothesis testing. The
+Bhattacharyya divergence (BD) offers a symmetric measure of
+dissimilarity between distributions, making it ideal for applications
+where bidirectional comparison is essential. It is used for clustering
+and classification (feature selection and clustering algorithms), signal
+processing (signal detection in noisy environments), and computer vision
+(image retrieval, object recognition, and feature distribution
+comparison). Finally, the Hellinger divergence (HD) is used in robust
+statistics (it is less sensitive to outliers than the KL divergence),
+domain adaptation (transfer learning), nonparametric testing
+(goodness-of-fit tests and two-sample tests) and machine learning
+(adversarial learning).
+<!--Fundamental to machine learning and information theory, statistical divergences quantify the 'distance' or dissimilarity between probability distributions. The Kullback–Leibler divergence (KLD) is the standard for training generative models, performing variational inference, and assessing model efficacy. As a flexible generalization, the Rényi divergence (RD) provides the framework for differential privacy and security analysis.
+For applications in signal processing and computer vision—such as image retrieval and radar detection—the Bhattacharyya divergence (BD) is preferred for its effectiveness in classification and clustering. Finally, the Hellinger divergence (HD) offers a robust alternative to KLD, making it ideal for goodness-of-fit tests, transfer learning, and handling outlier-heavy data.
+-->
+
+These divergences can be computed for both univariate or multivariate
+distributions in either discrete or continuous cases. The discrete
+scenario presents a simpler calculation as it bypasses the need for
+integral computation. Explicit expressions of most statistical
+divergences have been developed for many continuous univariate
+distributions, such as the gamma distribution, the Cauchy distribution,
+the generalized gamma distribution, the generalized Gaussian
+distribution, and so on. However, statistical divergences for continuous
+multivariate distributions require dealing with integrals whose domain
+is the set of all symmetric, positive definite matrices. Unfortunately,
+closed-form expressions are not easily found.\
+Very recently, closed form expressions of the KLD have been developed
+for the Multivariate elliptical distributions such as the multivariate
+generalized Gaussian distribution (MGGDs) [@bouhlel19] and multivariate
+Cauchy distributions (MCDs) [@bouhlel22]. Furthermore, an expression of
+the RD has been developed for Multivariate $t$-distributions (MTDs)
+[@bouhlel23]. The BD and HD can be computed from the RD. In this paper,
+we propose an efficient implementation of these divergences in R
+packages that is both precise and computationally fast,
+[`multvardiv`](https://CRAN.R-project.org/package=multvardiv). Our
+approach is very different from functions provided by existing R
+packages such as
+[`philentropy`](https://joss.theoj.org/papers/10.21105/joss.00765),
+[`FNN`](https://CRAN.R-project.org/package=FNN),
+[`dlookr`](https://CRAN.R-project.org/package=dlookr),
+[`LaplacesDemon`](https://web.archive.org/web/20150206004624/http://www.bayesian-inference.com/software), which allow the
+computation of statistical divergence in discrete case [@philentropy;
+@FNN; @dlookr; @LaplacesDemon].  
+The [`dad`](https://doi.org/10.32614/RJ-2021-071) package provides functions
+to compute distances between continuous multivariate Gaussian distributions,
+or between distributions non-parametrically estimated by the Gaussian kernel method if they are
+non-Gaussian [@dad].
+<!-- The [`dad`](https://doi.org/10.32614/RJ-2021-071) package provides
+functions which compute the distance (including Hellinger or Jeffreys,
+i.e. symmetrized Kullback-Leibler) or divergence between multivariate
+Gaussian distributions or distributions estimated by the Gaussian kernel
+[@dad].
+
+<!-- The Kullback-Leibler divergence (KLD) is a measure of the dissimilarity -->
+<!-- between two univariate or multivariate probability distributions. -->
+<!-- <!-- It is extensively used on statistical signal processing, machine learning, pattern recognition and other related fields in computer science. --> 
+<!-- It is extensively used on statistical signal processing, pattern -->
+<!-- recognition, machine learning, data science, statistical inference and -->
+<!-- other related fields in computer science, to assess the effectiveness of -->
+<!-- probabilistic models, compare distributions and perform tasks like -->
+<!-- feature selection. \textcolor{red}{[AJOUTER DES REF]} Explicit -->
+<!-- expressions of KLD have been developed for most univariate distributions -->
+<!-- such as the Gamma, the Cauchy, the generalized Gamma, the generalized -->
+<!-- Gaussian ones, etc. KLD expressions have also been developed around -->
+<!-- multivariate distributions such as, for example, Wishart and -->
+<!-- multivariate Gaussian. -->
+<!-- Other measurements of the divergencence between two probability -->
+<!-- distributions include the Rényi divergence (RD), the Bhattacharyya -->
+<!-- divergence (BD) and the Hellinger divergence (HD). -->
+
+<!-- Very recently, closed form expressions of the KLD have been developed -->
+<!-- for MGGDs [@bouhlel19] and MCDs [@bouhlel22]. Furthermore, an expression -->
+<!-- of the RD has been developed for MTDs [@bouhlel23]. The BD and HD can be -->
+<!-- computed from the RD. For scientific interest, we propose in this -->
+<!-- article to implement these divergences in the R packages -->
+<!-- [`multvardiv`](https://CRAN.R-project.org/package=multvardiv). Our -->
+<!-- approach is very different from functions provided by existing R -->
+<!-- packages such as -->
+<!-- [`philentropy`](https://joss.theoj.org/papers/10.21105/joss.00765), -->
+<!-- [`FNN`](https://CRAN.R-project.org/package=FNN), -->
+<!-- [`dlookr`](https://CRAN.R-project.org/package=dlookr), -->
+<!-- [`LaplacesDemon`](https://web.archive.org/web/20150206004624/http://www.bayesian-inference.com/software), -->
+<!-- which allow the computation of KLD between discrete (or discretized) -->
+<!-- probability distributions [@philentropy; @FNN; @dlookr; @LaplacesDemon]. -->
+
+In this paper, we will focus on three multivariate distributions: MTD, MCD and MGGD.
+The MTD belongs to the elliptical symmetric distributions [@kotz; @bouhlel23]. Such distribution has been deployed in several signal and image processing applications where
+heavy-tailed distribution is weel-suited.  
+The MCD is a special case of the multivariate $t$-distribution [@bouhlel22]. MCD
+has been recently used in several signal and image processing
+applications for which non-Gaussian models are needed. These
+applications include speckle denoising [@sahu; @ranjani], color image
+denoising [@sadreazami16], watermarking [@sadreazami14], speech
+enhancement [@fontaine].  
+The MGGD belongs to the family of elliptic distributions [@pascal]. MGGD is used in several signal and image processing applications [@bouhlel19]. In particular, it
+is widely used to accurately model the magnitudes of wavelet detail
+coefficients to capture inter-band dependencies or/and intra-band in a
+wide-sense (multi-scale, multi-channel, spatial dependencies, etc) [@Bouhlel2022]. 
+Application examples include, but are not limited to: image denoising
+[@sendur; @dongwook05; @dongwook09], texture image retrieving and
+classification [@verdoolaege09; @verdoolaege11; @berthoumieu].
+
+In what follows, we first present the MTD, the MCD and the MGGD
+(sections [Multivariate $t$-Distribution], [Multivariate Cauchy Distribution]
+and [Multivariate Generalized Gaussian Distribution]).
+For each of these distributions, some results are presented,
+and analytic expressions of the statistical divergences are exposed.
+<!--All of these results are used in the [`multvardiv`](https://CRAN.R-project.org/package=multvardiv) package.\-->
+Then we present the tools available in the
+[`multvardiv`](https://CRAN.R-project.org/package=multvardiv) package
+for these distributions ([The multvardiv package]).
+We first present some functions for the MTDs ([Multivariate $t$-Distribution]): probability density function, simulation, parameter estimation and graphical
+representations. Then we present the numerical computation of statistical
+divergence between MTDs with different level of precisions.
+The [`multvardiv`](https://CRAN.R-project.org/package=multvardiv) package
+provides the same tools for the MCD ([Multivariate Cauchy Distribution])
+and MGGD ([Multivariate generalized Gaussian distribution]).
+Some particular cases provide interesting results. We use these
+particular cases to test the computation of the statistical divergence
+([Some particular cases -- test of the results]).
+
+# Multivariate elliptical distributions and divergence
+
+A $p$-dimensional real valued random vector $\mathbf{X}$ is elliptically
+symmetric (ES) distributed if its probability density function (pdf)
+is given by $$
+    \displaystyle{ f_{\mathbf{X}}(\mathbf{x}) = C_{p,g} |\boldsymbol{\Sigma}|^{-1/2} g\left( (\mathbf{x}-\boldsymbol{\mu})^T \boldsymbol{\Sigma}^{-1} (\mathbf{x}-\boldsymbol{\mu}) \right)}
+$$ where $C_{p,g}$ is a normalization constant such that the integral of
+the distribution is equal to 1,
+$g: \mathbb{R}_+ \rightarrow \mathbb{R}_+$ is a function called density
+generator [@Fang1990], $\boldsymbol{\Sigma}$ is a symmetric definite
+positive matrix, called the scatter matrix, and the vector
+$\boldsymbol{\mu}$ is a location parameter that coincides with the
+expectation of $\mathbf{X}$. The multivariate normal distribution, the
+multivariate t-distribution and the multivariate generalised Gaussian
+distribution are all special cases of the ES distributions. They are
+defined by the following density generators:
+$g(x) = \exp{(-\frac{1}{2}x)}$ for MND,
+$g(x) = (1+\frac{x}{\nu})^{-\frac{\nu+p}{2}}$ for MTD and
+$g(x) = \exp{(-\frac{1}{2}x^\beta)}$ for MGGD.
+
+## Multivariate $t$-distribution
+
+Let $\mathbf{X}$ be a random vector of $\mathbb{R}^p$ from a
+multivariate $t$-distribution (MTD) with degrees of freedom $\nu$, mean
+vector $\boldsymbol{\mu}$ and scale matrix $\boldsymbol{\Sigma}$, which is a
+$p \times p$ symmetric, positive definite real matrix. Its pdf is given by: $$
+    \displaystyle{ f_{\mathbf{X}}(\mathbf{x}|\nu, \boldsymbol{\mu}, \boldsymbol{\Sigma}) = \frac{\Gamma\left( \frac{\nu+p}{2} \right) |\boldsymbol{\Sigma}|^{-1/2}}{\Gamma\left( \frac{\nu}{2} \right) (\nu \pi)^{p/2}} \left( 1 + \frac{1}{\nu} (\mathbf{x}-\boldsymbol{\mu})^T \boldsymbol{\Sigma}^{-1} (\mathbf{x}-\boldsymbol{\mu}) \right)^{-\frac{\nu+p}{2}} }
+$$ {#eq-mcd}
+
+where $\Gamma(\cdot)$ is the gamma function.
+
+A sample from a multivariate $t$-distribution with location parameter
+$\boldsymbol{\mu}$, scale matrix $\boldsymbol{\Sigma}$ and $\nu$ degrees of freedom
+can be generated using [@roth; @kotz]: $$
+    \displaystyle{\mathbf{X} = \boldsymbol{\mu} + \frac{\mathbf{Y}}{\sqrt{U/\nu}}}
+$$ {#eq-rmtd} where $\mathbf{Y}$ is generated from a centered Gaussian
+distribution with covariance matrix $\boldsymbol{\Sigma}$, i.e. $\mathbf{Y}\sim \mathcal{N}^p(\mathbf{0},\boldsymbol{\Sigma})$ and $U$ is distributed
+according to a Chi-squared distribution with $\nu$ degrees of freedom, $U\sim \chi^2(\nu)$ and $U$ is independent of $\mathbf{Y}$. For convenience, we use the following new variable: $V=U/\nu$. As a consequence, $V$ follows a Gamma distribution with parameters $(\frac{\nu}{2},\frac{\nu}{2})$, i.e. $V\sim Gamma(\frac{\nu}{2},\frac{\nu}{2})$. 
+
+<!-- The MCD is a particular case of the multivariate $t$-distribution with $\nu = 1$. -->
+
+<!-- Hence, a sample from a MCD with location parameter $\boldsymbol{\mu}$ and dispersion matrix $\Sigma$ can be generated using @eq-rmtd with $\nu = 1$. -->
+
+### Parameter estimation by the EM method {#sec-est_mtd}
+
+Let $\{ \mathbf{x}_1, \dots, \mathbf{x}_n \}$ be $n$ observations from an MTD
+with a pdf given by $f_{\mathbf{X}}(\mathbf{x})$ which depends
+on a set of unknown parameters
+$\theta = (\boldsymbol{\mu}, \boldsymbol{\Sigma}, \nu)$.
+We assume that each random vector $\mathbf{x}_i$ is associated with a
+non-observed, hidden variable $V_i$.
+The sequence ${V_i,i=1,\cdots,N}$ is also assumed to be independent and
+identically distributed ($iid$).
+
+The probability density of $\mathbf{X}$ depends on a set of unknown
+parameters $\theta = (\boldsymbol{\mu}, \boldsymbol{\Sigma}, \nu)$.
+<!-- We know that $\displaystyle{\mathbf{X} = \boldsymbol{\mu} + \frac{\mathbf{Y}}{\sqrt{u/\nu}}}$ (@eq-rmtd), -->
+<!-- where $\Y\sim \mathcal{N}^p(0,\gSigma)$ is a $p$-variate normal random vector with mean 0 and covariance matrix $\gSigma$, $U$ is the chi-squared -->
+<!-- random variable with degrees of freedom $\nu$ and $U$ is independent of $\Y$. -->
+
+The maximum likelihood (ML) estimator $\hat{\theta}$ of the parameters $\theta$ of the
+compound distribution $f_{\mathbf{X}}(\mathbf{x})$ is given by: $$
+\hat{\theta}_{ML} = \arg \max_{\theta} f_{\mathbf{X}}(\mathbf{x}|\theta) = \arg \max_{\theta}\prod_{i=1}^N f_{\mathbf{X}}(\mathbf{x}_i|\theta)
+$$ {#eq-MV}
+
+In the lack of an explicit solution of @eq-MV, the EM algorithm is used
+to find an estimation $\hat{\theta}$, given a current $\theta'$
+estimation. The new expression is then given by: $$\begin{array}{lll}
+\hat{\theta} &    = &   \arg \max_{\theta} \mathbb{E}_{V|\mathbf{X}} \left\{ \ln f_{V,\mathbf{X}}(V,\mathbf{X}|\theta)\big|\mathbf{x},\theta' \right\} \\
+&   = &   \arg \max_{\theta} \mathbb{E}_{V|\mathbf{X}} \left\{ \ln \prod\limits_{i=1}^N f_{V,\mathbf{X}}(V_i,\mathbf{X}_i|\theta)\big|\mathbf{x}_i,\theta' \right\} \\
+&   = &   \arg \max_{\theta} \mathbb{E}_{V|\mathbf{X}} \left\{ \sum\limits_{i=1}^N \ln f_{V,\mathbf{X}}(V_i,\mathbf{X}_i|\theta)\big|\mathbf{x}_i,\theta' \right\} \\
+&   = &   \arg \max_{\theta} \sum\limits_{i=1}^N \mathbb{E}_{V|\mathbf{X}} \left\{ \ln f_{V,\mathbf{X}}(V_i, \mathbf{X}_i|\theta)\big|\mathbf{x}_i,\theta' \right\}
+\end{array}$$ {#eq-armax}
+
+Let $\theta_y=(\boldsymbol{\mu},\boldsymbol{\Sigma})$ and $\theta_v=(\nu)$, using the
+fact that
+$f_{V,\mathbf{X}}(v_i,\mathbf{x}_i|\theta)=f_{\mathbf{X}|V}(\mathbf{x}_i|v_i,\theta_y)f_{V}(v_i|\theta_{v})$,
+then @eq-armax can bee maximised separately from the parameters
+$\theta_y$ et $\theta_{v}$, so:
+
+$$
+\hat{\theta}_y = \arg \max_{\theta_y}\sum_{i=1}^N \mathbb{E}_{V|\mathbf{X}}\{\ln f_{\mathbf{X}|V}(\mathbf{X}_i|V_i,\theta_y)\big|\mathbf{x}_i,\theta'\}
+$$ {#eq-lamda_w}
+and
+$$
+\hat{\theta}_v = \arg \max_{\theta_y}\sum_{i=1}^N \mathbb{E}_{V|\mathbf{X}}\{\ln f_{V}(V_i|\theta_{v})\big|\mathbf{x}_i,\theta'\}
+$$ {#eq-lamda_x}
+
+#### Estimation of $\theta_y=(\boldsymbol{\mu},\boldsymbol{\Sigma})$ {.unnumbered .unlisted}
+
+The pdf of $\mathbf{X}$ knowing $v$ is given as follows 
+$$\begin{array}{lll}
+f_{\mathbf{X}|V}(\mathbf{x_i}|v_i, \theta_y) &    = &  \big|\frac{\partial \mathbf{Y}}{\partial \mathbf{X}}\big| f_{\mathbf{Y}}\left( (\mathbf{x_i}-\boldsymbol{\mu}) \sqrt{v_i}\right) \\
+&   = &  \displaystyle{v_i^{\frac{p}{2}}\frac{1}{(2\pi)^{p/2}|\boldsymbol{\Sigma}|^{1/2}}\exp\big(-\frac{v_i}{2}(\mathbf{x_i}-\boldsymbol{\mu})^T\boldsymbol{\Sigma}^{-1}(\mathbf{x_i}-\boldsymbol{\mu})\big)}  \\
+&   = & \displaystyle{\frac{1}{(2\pi)^{p/2}|\frac{\boldsymbol{\Sigma}}{v_i}|^{1/2}}\exp\big(-\frac{v_i}{2}(\mathbf{x_i}-\boldsymbol{\mu})^T\boldsymbol{\Sigma}^{-1}(\mathbf{x_i}-\boldsymbol{\mu})\big)}
+\end{array}$$ {#eq-conditional_law}
+where $\big|\frac{\partial \mathbf{Y}}{\partial \mathbf{X}}\big|$ is the Jacobian determinant.
+It is clear that $\mathbf{X}|V\sim \mathcal{N}^p(\boldsymbol{\mu}, \boldsymbol{\Sigma}/v)$. 
+Substituting the expression of the pdf of $\mathbf{X}|V$ given by @eq-conditional_law into @eq-lamda_w, differentiating with respect to $\boldsymbol{\mu}$ and $\boldsymbol{\Sigma}$, and setting the result to zero gives:
+<!-- Nous allons procéder autrement, soit $V=\frac{U}{\nu}$, nous allons alors déterminer $f_{\X|V}(x_i|v_i, \theta_y)$ et $f_{V}(v_i|\theta_{u})$.  -->
+
+<!-- Sachant que -->
+
+<!-- \begin{align} -->
+
+<!-- \label{loi_conditionel} -->
+
+<!-- f_{\X|V}(x_i|v_i, \theta_y)&=|\frac{\partial \Y}{\partial \X}|f_\Y\bigg((\x_i-\gmu)\sqrt{v_i}\bigg)\\ -->
+
+<!-- &=v_i^{\frac{p}{2}}\frac{1}{(2\pi)^{p/2}|\gSigma|^{1/2}}\exp\bigg(-\frac{v_i}{2}(\x_i-\gmu)^T\gSigma^{-1}(\x_i-\gmu)\bigg)    \\ -->
+
+<!-- &=\frac{1}{(2\pi)^{p/2}|\frac{\gSigma}{v_i}|^{1/2}}\exp\bigg(-\frac{v_i}{2}(\x_i-\gmu)^T\gSigma^{-1}(\x_i-\gmu)\bigg)    \\ -->
+
+<!-- \X|V &\sim \mathcal{N}^p(\gmu, \frac{1}{v_i}\gSigma) -->
+
+<!-- \end{align} -->
+
+<!-- Le passage au log aboutit à  -->
+
+<!-- \begin{align} -->
+
+<!-- \label{loi_conditionel} -->
+
+<!-- \ln f_{\X|V}(x_i|v_i, \theta_y)&=\frac{p}{2}\ln v_i-\frac{p}{2}\ln 2\pi -\frac{1}{2} \ln |\gSigma| -\frac{v_i}{2}(\x_i-\gmu)^T\gSigma^{-1}(\x_i-\gmu)     -->
+
+<!-- \end{align} -->
+
+<!-- Les paramètres $\theta_y$ et $\theta_{v}$ peuvent être déterminés comme suit: -->
+
+<!-- \begin{align} -->
+
+<!-- \label{eq:lamda_x} -->
+
+<!-- &\hat{\theta}_y=\arg \max_{\theta_y}\sum_{i=1}^N \mathbb{E}_{V|\X}\{\ln f_{\X|V}(\X_i|V_i,\theta_y)\big|\x_i,\theta'\} \\ -->
+
+<!-- \label{eq:lamda_w} -->
+
+<!-- &\hat{\theta}_v=\arg \max_{\theta_y}\sum_{i=1}^N \mathbb{E}_{V|\X}\{\ln f_{V}(V_i|\theta_{v})\big|\x_i,\theta'\}. -->
+
+<!-- \end{align} -->
+
+<!-- Substituer (\ref{loi_conditionel}) dans (\ref{eq:lamda_x}), différencier par rapport à $\gmu$ et $\gSigma$ et mettre le résultat à zéro donne: -->
+
+<!-- \begin{align} -->
+
+<!-- \sum_{i=1}^N \mathbb{E}_{V|\X}\{\frac{\partial}{\partial \gmu}\ln f_{\X|V}(\X_i|V_i,\theta_y)\big|\x_i,\theta'\}=0 =\sum_{i=1}^N \mathbb{E}_{V|\X}\{-\frac{V_i}{2}\frac{\partial}{\partial \gmu}(\X_i-\gmu)^T\gSigma^{-1}(\X_i-\gmu)\big|\x_i,\theta'\}\\ -->
+
+<!-- \sum_{i=1}^N \mathbb{E}_{V|\X}\{\frac{\partial}{\partial \gSigma}\ln f_{\X|V}(\X_i|V_i,\theta_y)\big|\x_i,\theta'\}=0=\sum_{i=1}^N \mathbb{E}_{V|\X}\{-\frac{1}{2}\frac{\partial}{\partial \gSigma} \ln |\gSigma| -\frac{V_i}{2}\frac{\partial}{\partial \gSigma}(\X_i-\gmu)^T\gSigma^{-1}(\X_i-\gmu)    \big|\x_i,\theta'\}. -->
+
+<!-- \end{align} -->
+
+<!-- Le développement de ces équations aboutit  -->
+
+<!-- \begin{align} -->
+
+<!-- \sum_{i=1}^N \mathbb{E}_{V|\X}\{-\frac{V_i}{2}\frac{\partial}{\partial \gmu}\bigg[-\gmu^T\gSigma^{-1}\X_i -\X_i^T\gSigma^{-1}\gmu +\gmu^T\gSigma^{-1}\gmu\bigg]|\x_i,\theta'\}=0\\ -->
+
+<!-- \sum_{i=1}^N \mathbb{E}_{V|\X}\{-\frac{1}{2}\frac{\partial}{\partial \gSigma} \ln |\gSigma| -\frac{V_i}{2}\frac{\partial}{\partial \gSigma}(\X_i-\gmu)^T\gSigma^{-1}(\X_i-\gmu)    \big|\x_i,\theta'\}=0. -->
+
+<!-- \end{align} -->
+
+<!-- sachant que  -->
+
+<!-- \begin{align} -->
+
+<!-- \frac{\partial}{\partial \gmu}[-\gmu^T\gSigma^{-1}\x_i] = -\gSigma^{-1}\x_i, \quad \frac{\partial}{\partial \gmu}[-\x_i^T\gSigma^{-1}\gmu] = -\gSigma^{-1}\x_i,~ \frac{\partial}{\partial \gmu}[\gmu^T\gSigma^{-1}\gmu]=2\gSigma^{-1}\gmu \text{~et~} \frac{\partial}{\partial \gSigma} \ln |\gSigma| = \gSigma^{-1}, \\ -->
+
+<!-- \frac{\partial}{\partial \gSigma}(\x_i-\gmu)^T\gSigma^{-1}(\x_i-\gmu)= \frac{\partial}{\partial \gSigma}\mathrm{tr}\left(\gSigma^{-1}(\x_i-\gmu)(\x_i-\gmu)^T\right)= - \gSigma^{-1}(\x_i-\gmu)(\x_i-\gmu)^T\gSigma^{-1} -->
+
+<!-- \end{align} -->
+
+<!--We can show that the parameters $\boldsymbol{\mu}$ and $\Sigma$ are given by -->
+
+$$
+\hat{\boldsymbol{\mu}} = \frac{\sum_{i=1}^{N}\mathbf{x}_i\mathbb{E}_{V|\mathbf{X}}\{V_i|\mathbf{x}_i,\theta'\}}{\sum_{i=1}^{N}\mathbb{E}_{V|\mathbf{X}}\{V_i|\mathbf{x}_i,\theta'\}}
+$$ {#eq-EM_K1}
+
+$$
+\hat{\boldsymbol{\Sigma}} = \frac{1}{N}\sum_{i=1}^{N}\mathbb{E}_{V|\mathbf{X}}\{V_i|\mathbf{x}_i,\theta'\}(\mathbf{x}_i-\boldsymbol{\mu})(\mathbf{x}_i-\boldsymbol{\mu})^T
+$$ {#eq-EM_K2}
+
+where $\mathbb{E}_{V|\mathbf{X}}\{V_i|\mathbf{x}_i,\theta'\}$ is the posterior expectation of V which depends on the values $\mathbf{x}_i$. The analytical expression is provided in the next subsection.
+
+#### Estimation of $\theta_v=(\nu)$ {.unnumbered .unlisted}
+
+The pdf of $V$ is given by 
+$$
+f_{V}(v_i|\theta_{v}) = \big(\frac{\nu}{2}\big)^{\frac{\nu}{2}}\frac{1}{\Gamma(\nu/2)}v_i^{\frac{\nu}{2}-1}\exp{-\frac{\nu}{2}v_i}
+$$ {#eq-v_distribution}
+
+Substituting @eq-v_distribution into @eq-lamda_x, differentiating with respect to $ν$, and setting the result to zero provides the following result:
+<!-- %************************************************************************* -->
+
+<!-- \subsection{Estimation de $\theta_v=(\nu)$} -->
+
+<!-- %************************************************************************* -->
+
+<!-- la distribution de $V$ est alors  -->
+
+<!-- \begin{align} -->
+
+<!-- \label{loi_conditionel_2} -->
+
+<!-- f_{V}(v_i|\theta_{v})&= (\frac{\nu}{2})^{\frac{\nu}{2}}\frac{1}{\Gamma(\nu/2)}v_i^{\frac{\nu}{2}-1}e^{-\frac{\nu}{2}v_i} -->
+
+<!-- \end{align} -->
+
+<!-- Il est clair que la distribution de $V=\frac{u}{\nu}\sim \text{Gamma}(\frac{\nu}{2}, \frac{\nu}{2})$. \\ -->
+
+<!-- Le passage au log  -->
+
+<!-- \begin{align} -->
+
+<!-- \label{loi_conditionel_2} -->
+
+<!-- \ln f_{V}(v_i|\theta_{v})&= \frac{\nu}{2} \ln\frac{\nu}{2} -\ln\Gamma(\nu/2)+(\frac{\nu}{2}-1)\ln v_i -\frac{v_i\nu}{2} -->
+
+<!-- \end{align} -->
+
+<!-- En substituant (\ref{loi_conditionel_2}) dans (\ref{eq:lamda_w}), en différenciant par rapport à $\nu$ et en mettant le résultat à zéro donne : -->
+
+<!-- \begin{align} -->
+
+<!-- \sum_{i=1}^N \mathbb{E}_{V|\X}\{\frac{\partial}{\partial \nu}\ln f_{V}(V_i|\theta_{v})|\x_i,\theta'\}&=0 = -->
+
+<!-- \sum_{i=1}^N \mathbb{E}_{V|\X}\{1+\ln \frac{\nu}{2}-\psi(\frac{\nu}{2})+\ln V_i-V_i |\x_i,\theta'\}\\ -->
+
+<!-- &=\sum_{i=1}^N 1+\ln \frac{\nu}{2}-\psi(\frac{\nu}{2})+ \mathbb{E}_{V|\X}\{\ln V_i|\x_i,\theta'\} -\mathbb{E}_{V|\X}\{V_i |\x_i,\theta'\} -->
+
+<!-- \end{align} -->
+
+<!-- En conclusion -->
+
+$$
+1+\ln \frac{\hat{\nu}}{2}-\psi(\frac{\hat{\nu}}{2})=\frac{1}{N}\sum_{i=1}^N \left(\mathbb{E}_{V|\mathbf{X}}\{V_i |\mathbf{x}_i,\theta'\} -\mathbb{E}_{V|\mathbf{X}}\{\ln V_i|\mathbf{x}_i,\theta'\}\right)
+$$ {#eq-EM_G_1}
+
+#### Expression of $\mathbb{E}_{V|\mathbf{X}}\{V_i |\mathbf{x}_i,\theta'\}$ and $\mathbb{E}_{V|\mathbf{X}}\{\ln V_i|\mathbf{x}_i,\theta'\}$ {.unnumbered .unlisted}
+
+The posterior expectation $\mathbb{E}_{V|\mathbf{X}}\{V_i |\mathbf{x}_i,\theta'\}$ and $\mathbb{E}_{V|\mathbf{X}}\{\ln V_i|\mathbf{x}_i,\theta'\}$ depend on the posterior distribution $f_{V|\mathbf{X}}(v_i|\mathbf{x}_i)$ expressed as follows
+
+$$\begin{array}{lll}
+f_{V|\mathbf{X}}(v_i|\mathbf{x}_i) & = &\displaystyle{\frac{f_{\mathbf{X}|V}(\mathbf{x_i}|v_i, \theta_y)f_{V}(v_i|\theta_{v})}{f_{\mathbf{X}}(\mathbf{x_i}|\theta_y, \theta_v)}}\\
+&= & \displaystyle{\frac{v_i^{\frac{p+\nu}{2}-1}}{\Gamma(\frac{p+\nu}{2})} (\frac{1}{2})^{\frac{p+\nu}{2}}}\bigg[\nu+(\mathbf{x}_i-\boldsymbol{\mu})^T\boldsymbol{\Sigma}^{-1}(\mathbf{x}_i-\boldsymbol{\mu})\bigg]^{\frac{\nu+p}{2}} \exp-\frac{v_i}{2}\bigg[\nu+(\mathbf{x}_i-\boldsymbol{\mu})^T\boldsymbol{\Sigma}^{-1}(\mathbf{x}_i-\boldsymbol{\mu})\bigg]
+\end{array}
+$$
+It is worth noticing that $V|\mathbf{X}\sim Gamma\left(\frac{p+\nu}{2},\nu+(\mathbf{x}_i-\boldsymbol{\mu})^T\boldsymbol{\Sigma}^{-1}(\mathbf{x}_i-\boldsymbol{\mu})\right)$.
+Consequently, the posterior expectations are given by:
+
+$$
+\mathbb{E}_{V|\mathbf{X}}\{V_i|\mathbf{x}_i,\theta'\} = \frac{\nu'+p}{\nu'+(\mathbf{x}_i-\boldsymbol{\mu}')^T\boldsymbol{\Sigma}'^{-1}(\mathbf{x}_i-\boldsymbol{\mu}')}
+$$ {#eq-E1}
+
+and:
+
+$$
+\mathbb{E}_{V|\mathbf{X}}\{\ln V_i|\mathbf{x}_i,\theta'\} = \psi(\frac{\nu'+p}{2}) -\ln \frac{1}{2}\bigg[\nu'+(\mathbf{x}_i-\boldsymbol{\mu}')^T\boldsymbol{\Sigma}'^{-1}(\mathbf{x}_i-\boldsymbol{\mu}')\bigg]
+$$ {#eq-E2}
+
+<!-- \begin{tcolorbox}[arc=1ex, colback=yellow, colframe=yellow, left=3pt, right=3pt, top=2pt, bottom=2pt] -->
+
+<!-- \begin{align} -->
+
+<!-- \mathbb{E}_{V|\X}\{V_i |\x_i,\theta'\}&=\frac{\nu+p}{\nu+(\x_i-\gmu)^T\gSigma^{-1}(\x_i-\gmu)} -->
+
+<!-- \end{align} -->
+
+<!-- \end{tcolorbox} -->
+
+<!-- %************************************************************************************************* -->
+
+<!-- \subsection{Détermination de $\mathbb{E}_{V|\X}\{V_i |\x_i,\theta'\}$ et $\mathbb{E}_{V|\X}\{\ln V_i|\x_i,\theta'\}$} -->
+
+<!-- %************************************************************************************************* -->
+
+<!-- L'espérance a posteriori $\mathbb{E}_{V|\X}\{V_i |\x_i,\theta'\}$ et $\mathbb{E}_{V|\X}\{\ln V_i|\x_i,\theta'\}$ dépendent de la densité a posteriori $f_{V|\X}(v_i|\x_i)$ qui est exprimé comme suit: -->
+
+<!-- \begin{align} -->
+
+<!-- f_{V|\X}(v_i|\x_i)&=\frac{f_{\X|V}(\x_i|v_i,\theta_{y})f_V(v_i|\theta_{v})}{f_{\X}(\x_i|\theta_{y},\theta_{v})}\\ -->
+
+<!-- &=\frac{v_i^{\frac{p}{2}}\frac{1}{(2\pi)^{p/2}|\gSigma|^{1/2}}\exp\bigg[-\frac{v_i}{2}(\x_i-\gmu)^T\gSigma^{-1}(\x_i-\gmu)\bigg] (\frac{\nu}{2})^{\frac{\nu}{2}}\frac{1}{\Gamma(\nu/2)}v_i^{\frac{\nu}{2}-1}e^{-\frac{\nu}{2}v_i}       }{ \frac{\Gamma(\frac{\nu+p}{2})}{\Gamma(\nu/2)} \frac{1}{\pi^{p/2}|\gSigma|^{1/2}\nu^{\frac{p}{2}}} \bigg[1+\frac{1}{\nu}(\x_i-\gmu)^T\gSigma^{-1}(\x_i-\gmu)\bigg]^{-\frac{\nu+p}{2}}   }   \\ -->
+
+<!-- &=\frac{v_i^{\frac{p+\nu}{2}-1}}{\Gamma(\frac{p+\nu}{2})}(\frac{\nu}{2})^{\frac{p+\nu}{2}}\bigg[1+\frac{1}{\nu}(\x_i-\gmu)^T\gSigma^{-1}(\x_i-\gmu)\bigg]^{\frac{\nu+p}{2}} \exp-\frac{v_i}{2}\bigg[\nu+(\x_i-\gmu)^T\gSigma^{-1}(\x_i-\gmu)\bigg] -->
+
+<!-- \end{align} -->
+
+<!-- \begin{tcolorbox}[arc=1ex, colback=yellow, colframe=yellow, left=3pt, right=3pt, top=2pt, bottom=2pt] -->
+
+<!-- \begin{align} -->
+
+<!-- V|\X &\sim \text{Gamma}\bigg(\frac{\nu+p}{2}, \frac{1}{2}\bigg[\nu+(\x_i-\gmu)^T\gSigma^{-1}(\x_i-\gmu)\bigg] \bigg) -->
+
+<!-- \end{align} -->
+
+<!-- \end{tcolorbox} -->
+
+<!-- Nous pouvons maintenant exprimé l'espérance  -->
+
+<!-- \begin{tcolorbox}[arc=1ex, colback=yellow, colframe=yellow, left=3pt, right=3pt, top=2pt, bottom=2pt] -->
+
+<!-- \begin{align} -->
+
+<!-- \mathbb{E}_{V|\X}\{V_i |\x_i,\theta'\}&=\frac{\nu+p}{\nu+(\x_i-\gmu)^T\gSigma^{-1}(\x_i-\gmu)} -->
+
+<!-- \end{align} -->
+
+<!-- \end{tcolorbox} -->
+
+<!-- L'expression de $\mathbb{E}_{V|\X}\{\ln V_i|\x_i,\theta'\}$ est donnée  -->
+
+<!-- \begin{tcolorbox}[arc=1ex, colback=yellow, colframe=yellow, left=3pt, right=3pt, top=2pt, bottom=2pt] -->
+
+<!-- \begin{align} -->
+
+<!-- \mathbb{E}_{V|\X}\{\ln V_i|\x_i,\theta'\}&= \psi(\frac{\nu+p}{2}) -\ln \frac{1}{2}\bigg[\nu+(\x_i-\gmu)^T\gSigma^{-1}(\x_i-\gmu)\bigg]  -->
+
+<!-- \end{align} -->
+
+<!-- \end{tcolorbox} -->
+
+<!-- \begin{table}[h] -->
+
+<!-- \begin{tabular}{l} -->
+
+<!-- \toprule -->
+
+#### Algorithm {#sec-mtd_algo .unnumbered .unlisted}
+
+From these expressions, we can build an algorithm for the parameter
+estimation:
+
+<!-- \textbf{Algorithme }  \\ -->
+
+<!-- \bottomrule -->
+
+<!-- \end{tabular} -->
+
+<!-- \end{table} -->
+
+<!-- **Input**: $N, \mathbf{x}_i, \epsilon$ -->
+
+<!-- **Output**: $\hat{\theta}=(\hat{\boldsymbol{\mu}},\hat{\Sigma},\hat{\nu})$ -->
+
+<!-- *   [**Initialisation:**]{.underline} -->
+
+1.  Initialization of the parameters
+    $\theta'=({\boldsymbol{\mu}}',{\boldsymbol{\Sigma}}',{\nu}')$
+
+2.  Repeat
+
+    -   Compute $\mathbb{E}_{V|\mathbf{X}}\{V_i |\mathbf{x}_i,\theta'\}$ using 
+        @eq-E1 and $\mathbb{E}_{V|\mathbf{X}}\{\ln V_i|\mathbf{x}_i,\theta'\}$
+        using @eq-E2
+
+    -   Estimate $\hat{\boldsymbol{\mu}}$ using @eq-EM_K1
+
+    -   Estimate $\hat{\boldsymbol{\Sigma}}$ using @eq-EM_K2
+
+    -   Resolve @eq-EM_G_1 to estimate $\hat{\nu}$
+    
+    -   Compute the stop criterion: $D\leftarrow\Vert\hat{\theta}-\theta'\Vert$
+    
+    -   Define the inputs for the next iteration: $\boldsymbol{\mu}',\boldsymbol{\Sigma}',\nu' \leftarrow\hat{\boldsymbol{\mu}},\hat{\boldsymbol{\Sigma}},\hat{\nu}$
+    
+    -   **Until** $D<\epsilon$
+
+<!--           *   Compute the stop criterion: $D\leftarrow\Vert\hat{\theta}-\theta'\Vert$ -->
+
+<!--           *   Define the inputs for the next iteration: $\boldsymbol{\mu}',\Sigma',\nu' \leftarrow\hat{\boldsymbol{\mu}},\hat{\Sigma},\hat{\nu}$ -->
+
+<!--     1.    **Until** $D<\epsilon$ -->
+
+3.  **Return** $(\hat{\boldsymbol{\mu}},\hat{\boldsymbol{\Sigma}},\hat{\nu})$
+
+### Rényi divergence
+
+Let $\mathbf{X}^1$ and $\mathbf{X}^2$ be two random vectors of
+$\mathbb{R}^p$ from MTDs with pdf given as follows: $$
+    \displaystyle{ f_{\mathbf{X}^1}(\mathbf{x}|\nu_1, \boldsymbol{\Sigma}_1) = f_{\mathbf{X}^1}(\mathbf{x}|\nu_1, \boldsymbol{0}, \boldsymbol{\Sigma}_1) = \frac{\Gamma\left( \frac{\nu_1+p}{2} \right) |\boldsymbol{\Sigma}_1|^{-1/2}}{\Gamma\left( \frac{\nu_1}{2} \right) (\nu_1 \pi)^{p/2}} \left( 1 + \frac{1}{\nu_1} \mathbf{x}^T \boldsymbol{\Sigma}_1^{-1} \mathbf{x} \right)^{-\frac{\nu_1+p}{2}} }
+$$ and $$
+    \displaystyle{ f_{\mathbf{X}^2}(\mathbf{x}|\nu_2, \boldsymbol{\Sigma}_2) = f_{\mathbf{X}^2}(\mathbf{x}|\nu_2, \boldsymbol{0}, \boldsymbol{\Sigma}_2) = \frac{\Gamma\left( \frac{\nu_2+p}{2} \right) |\boldsymbol{\Sigma}_2|^{-1/2}}{\Gamma\left( \frac{\nu_2}{2} \right) (\nu_2 \pi)^{p/2}} \left( 1 + \frac{2}{\nu_2} \mathbf{x}^T \boldsymbol{\Sigma}_2^{-1} \mathbf{x} \right)^{-\frac{\nu_2+p}{2}} }
+$$
+
+The Rényi divergence (RD) of order $\beta$ ($\beta >0$, $\beta \neq 1$) between
+$\mathbf{X}^1$ and $\mathbf{X}^2$ is: $$\begin{array}{lll}
+\displaystyle{D_R^{\beta}(\mathbf{X}^1 \Vert \mathbf{X}^2)} &   = &   \displaystyle{\frac{1}{\beta-1} \ln\left({\mathbb{E}_{X^1}\left[ \left( \frac{f_{\mathbf{X}^1}(\mathbf{x}|\nu_1, \boldsymbol{\Sigma}_1)}{f_{\mathbf{X}^2}(\mathbf{x}|\nu_2, \boldsymbol{\Sigma}_2)} \right)^{\beta-1} \right]}\right)} \\
+\\
+& =   &    \displaystyle{\frac{1}{\beta-1} \ln\left( \int_{\mathbb{R}^p}{\left( \frac{f_{\mathbf{X}^1}(\mathbf{x}|\nu_1, \boldsymbol{\Sigma}_1)}{f_{\mathbf{X}^2}(\mathbf{x}|\nu_2, \boldsymbol{\Sigma}_2)} \right)^{\beta-1} f_{\mathbf{X}^1}(\mathbf{x}|\nu_1, \boldsymbol{\Sigma}_1) \mathrm{d}\mathbf{x}} \right)}
+\end{array}$$ {#eq-rd}
+
+Let $\lambda_1, \dots, \lambda_p$ be the eigenvalues of the square
+matrix $\boldsymbol{\Sigma}_1 \boldsymbol{\Sigma}_2^{-1}$ sorted in increasing order:
+$\lambda_1 < \dots < \lambda_p$. Let $\delta_1 = \frac{\nu_1+p}{2}\beta$
+and $\delta_2 = \frac{\nu_2+p}{2}(1-\beta)$.
+
+If the following condition is verified:
+$$\delta_1 + \delta_2 - \frac{p}{2} > 0$$ {#eq-cond_delta}
+@bouhlel23 show that the RD of order $\beta$ between $\mathbf{X}^1$ and
+$\mathbf{X}^2$ is given by:
+
+$$\begin{array}{lll}
+\displaystyle{D_R^{\beta}(\mathbf{X}^1 \Vert \mathbf{X}^2)} &   = &   \displaystyle{\frac{1}{1-\beta} \left[ \beta \ln\left( \frac{\Gamma\left(\frac{\nu_1+p}{2}\right) \Gamma\left(\frac{\nu_2}{2}\right) \nu_2^\frac{p}{2}}{\Gamma\left(\frac{\nu_2+p}{2}\right) \Gamma\left(\frac{\nu_1}{2}\right) \nu_1^\frac{p}{2}} \right) + \ln\left( \frac{\Gamma\left(\frac{\nu_2+p}{2}\right)}{\Gamma\left(\frac{\nu_2}{2}\right)} \right) \right.} \\
+\\
+&&   \displaystyle{\left. + \ln\left( \frac{\Gamma\left(\delta_1 + \delta_2 - \frac{p}{2}\right)}{\Gamma(\delta_1 + \delta_2)} \right) - \frac{\beta}{2} \sum_{i=1}^p{\ln\lambda_i} + \ln F_D \right]}
+\end{array}$$ {#eq-rdmtd}
+
+where $F_D$ depends on the values of
+$\frac{\nu_1}{\nu_2}\lambda_1, \dots, \frac{\nu_1}{\nu_2}\lambda_p$ :
+
+-   If $\frac{\nu_1}{\nu_2}\lambda_1 > 1$,
+
+$$
+\displaystyle{ F_D = F_D^{(p)}\bigg( \delta_1, \underbrace{\frac{1}{2}, \dots, \frac{1}{2}}_p; \delta_1 + \delta_2; 1 - \frac{\nu_2}{\nu_1}\frac{1}{\lambda_1}, \dots, 1 - \frac{\nu_2}{\nu_1}\frac{1}{\lambda_p} \bigg) }
+$$
+
+-   If $\frac{\nu_1}{\nu_2}\lambda_p < 1$,
+
+$$
+\displaystyle{ F_D = \prod_{i=1}^p{\left(\frac{\nu_1}{\nu_2}\lambda_i\right)^\frac{1}{2}} F_D^{(p)}\bigg( \delta_2, \underbrace{\frac{1}{2}, \dots, \frac{1}{2}}_p; \delta_1 + \delta_2; 1 - \frac{\nu_1}{\nu_2}\lambda_1, \dots, 1 - \frac{\nu_1}{\nu_2}\lambda_p \bigg) }
+$$
+
+-   If $\frac{\nu_1}{\nu_2}\lambda_1 < 1 < \frac{\nu1}{\nu_2}\lambda_p$,
+
+$$\begin{array}{lll}
+F_D &   = &   \displaystyle{ \left(\frac{\nu_2}{\nu_1}\frac{1}{\lambda_p}\right)^{\delta_2} \prod_{i=1}^p{\left(\frac{\nu_1}{\nu_2}\lambda_i\right)^\frac{1}{2}} } \\
+&&    \displaystyle{ \times F_D^{(p)}\bigg( \delta_2, \underbrace{\frac{1}{2}, \dots, \frac{1}{2}, \delta_1 + \delta_2 - \frac{p}{2}}_p; \delta_1 + \delta_2; 1 - \frac{\lambda_1}{\lambda_p}, \dots, 1 - \frac{\lambda_{p-1}}{\lambda_p}, 1 - \frac{\nu_2}{\nu_1}\frac{1}{\lambda_p} \bigg) }
+\end{array}
+$$
+
+where $F_D^{(n)}$ is the Lauricella $D$-hypergeometric function defined
+by: $$
+    F_D^{(n)}\left(a; b_1, \dots, b_n; c; x_1, \dots, x_n\right) = \sum_{m_1=0}^\infty \dots \sum_{m_n=0}^\infty{\frac{(a)_{m_1+\dots+m_n} (b_1)_{m_1} \dots (b_n)_{m_n}}{(c)_{m_1+\dots+m_n}} \ \frac{{x_1}^{m_1}}{m_1!} \dots \frac{{x_n}^{m_n}}{m_n!}}
+$$ {#eq-lauric} and the Pochhammer symbol $(q)_i$, where $q$ is a real
+and $i$ is a non-negative integer, is given by: $$
+\displaystyle{ (q)_i = \frac{\Gamma(q+i)}{\Gamma(q)} =} \left\{ \begin{array}{ll}
+1 & \text{if } i = 0 \\
+\displaystyle{ q (q+1) \dots (q+i-1) } & \text{if } i \geq 1
+\end{array} \right.
+$$ {#eq-pochhammer}
+
+### Bhattacharyya and Hellinger divergences
+
+The Bhattacharyya divergence is computed from the RD of order
+$\beta = \frac{1}{2}$: $$
+D_B(\mathbf{X}^1 \Vert \mathbf{X}^2) = \frac{1}{2} D_R^\frac{1}{2}(\mathbf{X}^1 \Vert \mathbf{X}^2)
+$$ {#eq-bdmtd}
+
+And the Hellinger divergence: $$
+D_H(\mathbf{X}^1 \Vert \mathbf{X}^2) = 1 - \exp\left(-\frac{1}{2} D_R^\frac{1}{2}(\mathbf{X}^1 \Vert \mathbf{X}^2)\right)
+$$ {#eq-hdmtd}
+
+### Kullback-Leibler divergence {#sec-kldt}
+
+The KLD of $\mathbf{X}^1$ from $\mathbf{X}^2$ is given by : $$
+    \begin{array}{ll}
+    \displaystyle{D_{KL}(\mathbf{X}^1||\mathbf{X}^2)} & \displaystyle{= \mathbb{E}_{X^1}\left[\ln\left(\frac{f_{\mathbf{X}^1}(\mathbf{X})}{f_{\mathbf{X}^2}(\mathbf{X})}\right)\right]} \\
+    & \displaystyle{= \int_{\mathbb{R}^p}{\ln \left( \frac{f_{\mathbf{X}^1}(\mathbf{x}|\boldsymbol{\Sigma}_1, \beta_1)}{f_{\mathbf{X}^2}(\mathbf{x}|\boldsymbol{\Sigma}_2, \beta_2)} \right) f_{\mathbf{X}^1}(\mathbf{x}|\boldsymbol{\Sigma}_1, \beta_1)\mathrm{d}\mathbf{x}}}
+    \end{array}
+$$ {#eq-kl}
+In our case, the analytic expression of the KLD of
+$\mathbf{X}_1$ from $\mathbf{X}_2$ is given by [@bouhlel23]:
+
+$$\begin{array}{lll}
+D_{KL}(\mathbf{X}^1 \Vert \mathbf{X}^2) &   = &   \displaystyle{ \ln\left( \frac{\Gamma\left(\frac{\nu_1+p}{2}\right) \Gamma\left(\frac{\nu_2}{2}\right) \nu_2^\frac{p}{2}}{\Gamma\left(\frac{\nu_2+p}{2}\right) \Gamma\left(\frac{\nu_1}{2}\right) \nu_1^\frac{p}{2}} \right) + \frac{\nu_2 - \nu_1}{2} \left( \psi\left(\frac{\nu_1+p}{2}\right) - \psi\left(\frac{\nu_1}{2}\right) \right) } \\
+&&    \displaystyle{ - \frac{1}{2}\sum_{i=p}^p{\ln\lambda_i} - \frac{\nu_2+p}{2} \times D }
+\end{array}
+$$ {#eq-klmtd}
+
+where $D$ depends on the values of
+$\frac{\nu_1}{\nu_2}\lambda_1, \dots, \frac{\nu_1}{\nu_2}\lambda_p$:
+
+-   If $\displaystyle{\frac{\nu_1}{\nu_2}\lambda_1 > 1}$,
+    $$\begin{array}{lll}
+    D &   = &   \displaystyle{ \prod_{i=1}^p{\left(\frac{\nu_2}{\nu_1}\frac{1}{\lambda_i}\right)^\frac{1}{2}} \frac{\partial}{\partial{a}}{ \bigg\{ F_D^{(p)}\bigg( \frac{\nu_1+p}{2}, \underbrace{\frac{1}{2}, \dots, \frac{1}{2}}_p; a + \frac{\nu_1+p}{2}; 1 - \frac{\nu_2}{\nu_1}\frac{1}{\lambda_1}, \dots, 1 - \frac{\nu_2}{\nu_1}\frac{1}{\lambda_p} \bigg) \bigg\} } \bigg|_{a=0} } \\
+    &   = &   \displaystyle{ \prod\limits_{i=1}^p\left(\frac{\nu_2}{\nu_1}\frac{1}{\lambda_i}\right)^{\frac{1}{2}}\sum\limits_{m_1\geq 0}...\sum\limits_{m_p\geq 0} \bigg(\frac{\nu_1+p}{2}\bigg)_{\sum m_i}\frac{\partial}{\partial a}\bigg\lbrace \frac{1}{\big(a+\frac{\nu_1+p}{2}\big)_{\sum m_i}}  \bigg\rbrace\bigg|_{a=0} } \\
+    &&    \displaystyle{ \times \bigg(\frac{1}{2}\bigg)_{m_1}...\bigg(\frac{1}{2}\bigg)_{m_p} \frac{1}{m_1!}\bigg(1-\frac{\nu_2}{\nu_1}\frac{1}{\lambda_1}\bigg)^{m_1} \dots \frac{1}{m_p!}\bigg(1-\frac{\nu_2}{\nu_1}\frac{1}{\lambda_p}\bigg)^{m_p} }
+    \end{array}$$ {#eq-klmtd1} where: $$
+    \displaystyle{\frac{\partial}{\partial a}\bigg\lbrace \frac{1}{\left(a+\frac{\nu_1+p}{2}\right)_{\sum_{i=1}^p m_i}}  \bigg\rbrace\bigg|_{a=0} = \frac{-1}{\big(\frac{\nu_1+p}{2}\big)_{\sum_{i=1}^pm_i}} \sum_{k=0}^{\sum_{i=1}^p m_i -1} \frac{1}{k+\frac{\nu_1+p}{2}}}
+    $$
+
+-   If $\displaystyle{\frac{\nu_1}{\nu_2}\lambda_p < 1}$,
+    $$\begin{array}{lll}
+    D &   = &   \displaystyle{ \frac{\partial}{\partial{a}}{ \bigg\{ F_D^{(p)}\bigg( a, \underbrace{\frac{1}{2}, \dots, \frac{1}{2}}_p; a + \frac{\nu_1+p}{2}; 1 - \frac{\nu_1}{\nu_2}\lambda_1, \dots, 1 - \frac{\nu_1}{\nu_2}\lambda_p \bigg) \bigg\} } \bigg|_{a=0} } \\
+    &   = &   \displaystyle{ \sum_{m_1\geq 0} \dots \sum_{m_p\geq 0} \frac{\partial}{\partial a}\bigg\lbrace \frac{(a)_{\sum mi}}{\big(a+\frac{\nu_1+p}{2}\big)_{\sum m_i}}  \bigg\rbrace\bigg|_{a=0}  \bigg(\frac{1}{2}\bigg)_{m_1}...\bigg(\frac{1}{2}\bigg)_{m_p} } \\
+    &&    \displaystyle{ \times \frac{1}{m_1!}\bigg(1-\frac{\nu_1}{\nu_2}\lambda_1\bigg)^{m_1} \dots \frac{1}{m_p!}\bigg(1-\frac{\nu_1}{\nu_2}\lambda_p\bigg)^{m_p} }
+    \end{array}$$ {#eq-klmt2} where: $$
+    \displaystyle{ \frac{\partial}{\partial a}\bigg\lbrace \frac{(a)_{\sum m_i}}{\big(a+\frac{\nu_1+p}{2}\big)_{\sum_{i=1}^p m_i}}  \bigg\rbrace\bigg|_{a=0} = \frac{(1)_{\sum_{i=1}^p m_i} }{\big(\frac{\nu_1+p}{2}\big)_{\sum_{i=1}^p m_i}}\frac{1}{\sum_{i=1}^p m_i} }
+    $$
+
+-   If
+    $\displaystyle{\frac{\nu_1}{\nu_2}\lambda_1 < 1 < \frac{\nu1}{\nu_2}\lambda_p}$,
+    $$\begin{array}{lll}
+    D &   = &   \displaystyle{ -\ln\left(\frac{\nu_1}{\nu_2}\lambda_p\right) } + \\
+    &&    \displaystyle{ \frac{\partial}{\partial{a}}{ \bigg\{ F_D^{(p)}\bigg( a, \underbrace{\frac{1}{2}, \dots, \frac{1}{2}, a + \frac{\nu_1}{2}}_p; a + \frac{\nu_1+p}{2}; 1 - \frac{\lambda_1}{\lambda_p}, \dots, 1 - \frac{\lambda_{p-1}}{\lambda_p}, 1 - \frac{\nu_2}{\nu_1}\frac{1}{\lambda_p} \bigg) \bigg\} } \bigg|_{a=0} } \\
+    &   = &   \displaystyle{ -\ln\bigg(\frac{\nu_1}{\nu_2}\lambda_p\bigg) +\sum\limits_{m_1\geq 0} \dots \sum_{m_p\geq 0} \frac{\partial}{\partial a}\bigg\lbrace \frac{(a)_{\sum mi} (a+\frac{\nu_1}{2})_{m_p}}{\big(a+\frac{\nu_1+p}{2}\big)_{\sum m_i}}  \bigg\rbrace\bigg|_{a=0} } \\
+    &&    \displaystyle{ \times \bigg(\frac{1}{2}\bigg)_{m_1} \dots \bigg(\frac{1}{2}\bigg)_{m_{p-1}} \frac{1}{m_1!}\left(1-\frac{\lambda_1}{\lambda_p}\right)^{m_1} \dots  \frac{1}{m_p!}\left(1-\frac{\nu_2}{\nu_1}\frac{1}{\lambda_p}\right)^{m_p} }
+    \end{array}$$ {#eq-klmtd3} where: $$
+    \displaystyle{ \frac{\partial}{\partial a}\bigg\lbrace \frac{(a)_{\sum_{i=1}^p m_i}(a+\frac{\nu_1}{2})_{m_p}}{\big(a+\frac{\nu_1+p}{2}\big)_{\sum_{i=1}^p m_i}}  \bigg\rbrace\bigg|_{a=0} = \frac{(1)_{\sum_{i=1}^p m_i} }{\big(\frac{\nu_1+p}{2}\big)_{\sum_{i=1}^p m_i}}\frac{(\frac{\nu_1}{2})_{m_p}}{\sum_{i=1}^p m_i} }
+    $$
+
+### Study of the divergence
+
+The divergence between two multivariate $t$-distributions
+${\mathbf{X}^1 \sim f_{\mathbf{X}^1}(\mathbf{x}|\nu_1, \boldsymbol{0}, \boldsymbol{\Sigma}_1)}$
+and
+${\mathbf{X}^2 \sim f_{\mathbf{X}^2}(\mathbf{x}|\nu_2, \boldsymbol{0}, \boldsymbol{\Sigma}_2)}$
+depends on the values of the parameters of these distributions.
+In the examples below, the divergences between $\mathbf{X}^1$ and $\mathbf{X}^2$
+are computed using the functions `diststudent` and `kld` from the
+[`multvardiv`](https://CRAN.R-project.org/package=multvardiv) package.
+The R codes which produce these graphics are given in appendix
+(@sec-append_divMTD).
+
+#### Among the degrees of freedom {.unnumbered .unlisted}
+
+Let $\mathbf{X}^1 \sim MTD(\mathbf{0}, \nu_1, \boldsymbol{\Sigma})$ and
+$\mathbf{X}^2 \sim MTD(\mathbf{0}, \nu_2, \boldsymbol{\Sigma})$
+
+where $\nu_1$ take values in $]0 ; 20]$, $\nu_2 = 2$, and
+$\boldsymbol{\Sigma} = \left(\begin{array}{cc}
+1 & 0.3 \\
+0.3 & 1
+\end{array}\right)$.
+
+The results are showed in @fig-divnu1.
+Obviously, for each of these divergences,
+$D_R^{\beta}(\mathbf{X}^1 \parallel \mathbf{X}^2) = 0=D_{KL}(\mathbf{X}^1 \parallel \mathbf{X}^2)$ when $\nu_1 = \nu_2$. For
+${\nu_1 \in ]0; \nu_2]}$, the divergence decreases quickly to 0.
+Then for ${\nu_1 \in ]\nu_2; +\infty]}$, it slowly increases and converges
+to a limit.
+
+```{r}
+#| echo: false
+#| label: fig-divnu1
+#| fig-cap: "Divergence between the distributions $\\mathbf{X}^1$ et $\\mathbf{X}^2$"
+#| fig-subcap:
+#|    - "Renyi ($\\beta = 0.25$)"
+#|    - "Renyi ($\\beta = 1.5$)"
+#|    - "Bhattacharyya"
+#|    - "Hellinger"
+#|    - "Kullback-Leibler"
+#| layout-ncol: 2
+#| fig-width: 7
+#| fig-height: 3.5
+#| warning: false
+#| cache: true
+
+nu <- 2
+
+# Values of nu1
+nu1 <- c(seq(0.1, nu, by = 0.1), seq(nu+1, 20, by = 1))
+
+# Fixed values of the other parameters
+nu2 <- nu
+Sigma <- matrix(c(1, 0.3, 0.3, 1), nrow = 2)
+
+# Values of lambda*nu1/nu2
+lambdanu <- nu1/nu2
+
+# Rényi divergence, beta = 0.25
+b <- 0.25
+renyi_0_25 <- sapply(nu1, function(nu) {
+  diststudent(nu1 = nu, Sigma1 = Sigma,
+              nu2 = nu2, Sigma2 = Sigma,
+              dist = "renyi", bet = b)
+})
+
+# Rényi divergence, beta = 1.5
+b <- 1.5
+renyi_1_5 <- sapply(nu1, function(nu) {
+  diststudent(nu1 = nu, Sigma1 = Sigma,
+              nu2 = nu2, Sigma2 = Sigma,
+              dist = "renyi", bet = b)
+})
+
+# Battacharyya divergence
+bhattacharyya <- sapply(nu1, function(nu) {
+  diststudent(nu1 = nu, Sigma1 = Sigma,
+              nu2 = nu2, Sigma2 = Sigma,
+              dist = "bhattacharyya")
+})
+
+# Hellinger divergence
+hellinger <- sapply(nu1, function(nu) {
+  diststudent(nu1 = nu, Sigma1 = Sigma,
+              nu2 = nu2, Sigma2 = Sigma,
+              dist = "hellinger")
+})
+
+# Kullback-Leibler divergence
+kullback_leibler <- sapply(nu1, function(nu) {
+  kld(Sigma1 = Sigma, Sigma2 = Sigma,
+      nu1 = nu, nu2 = nu2,
+      distribution = "mtd")
+})
+
+# Table of the results
+divnu <- data.frame(
+  nu1 = nu1,
+  lambdanu = lambdanu,
+  renyi_0_25 = renyi_0_25,
+  renyi_1_5 = renyi_1_5,
+  bhattacharyya = bhattacharyya,
+  hellinger = hellinger,
+  kullback_leibler = kullback_leibler
+)
+
+par(mar = c(4.1, 4.1, 3.1, 2.1))
+
+plot(renyi_0_25~nu1, data = divnu, type = "b", pch = 16,
+     xlab = substitute(nu[1]), ylab = "Divergence", ylim = c(0, 0.6))
+axis(side = 1, at = nu2, cex = 1.2)
+
+plot(renyi_1_5~nu1, data = divnu, type = "b", pch = 16,
+     xlab = substitute(nu[1]), ylab = "Divergence", ylim = c(0, 0.6))
+axis(side = 1, at = nu2, cex = 1.2)
+
+plot(bhattacharyya~nu1, data = divnu, type = "b", pch = 16,
+     xlab = substitute(nu[1]), ylab = "Divergence", ylim = c(0, 0.6))
+axis(side = 1, at = nu2, cex = 1.2)
+
+plot(hellinger~nu1, data = divnu, type = "b", pch = 16,
+     xlab = substitute(nu[1]), ylab = "Divergence", ylim = c(0, 0.6))
+axis(side = 1, at = nu2, cex = 1.2)
+
+plot(kullback_leibler~nu1, data = divnu, type = "b", pch = 16,
+     xlab = substitute(nu[1]), ylab = "Divergence", ylim = c(0, 0.6))
+axis(side = 1, at = nu2, cex = 1.2)
+
+```
+
+#### Among the scale matrix: first situation {.unnumbered .unlisted}
+
+Let $\mathbf{X}^1 \sim MTD(\mathbf{0}, \nu, \boldsymbol{\Sigma}_1)$ and
+$\mathbf{X}^2 \sim MTD(\mathbf{0}, \nu, \boldsymbol{\Sigma}_2)$
+
+where $\nu = 1$,
+$\boldsymbol{\Sigma}_2 = \left(\begin{array}{cc}
+3 & 0.3 \\
+0.3 & 1
+\end{array}\right)$
+and $\boldsymbol{\Sigma}_1 = \left(\begin{array}{cc}
+s_1 & 0.3 \\
+0.3 & 1
+\end{array}\right)$, $s_1 \in ]0 ; 50]$.
+
+The results are showed in @fig-divsigma11.
+For each of these divergences,
+$D_R^{\beta}(\mathbf{X}^1 \parallel \mathbf{X}^2) = 0=D_{KL}(\mathbf{X}^1 \parallel \mathbf{X}^2)$ when $s_1 = 3$.
+For $s_1 \in ]0; 3]$, the divergence decreases quickly to 0,
+then for $s_1 > 3$, it increases.
+
+```{r}
+#| label: fig-divsigma11
+#| echo: false
+#| fig-cap: "Divergence between the distributions $\\mathbf{X}^1$ et $\\mathbf{X}^2$"
+#| fig-subcap:
+#|    - "Renyi ($\\beta = 0.25$)"
+#|    - "Renyi ($\\beta = 1.5$)"
+#|    - "Bhattacharyya"
+#|    - "Hellinger"
+#|    - "Kullback-Leibler"
+#| layout-ncol: 2
+#| fig-width: 7
+#| fig-height: 3.5
+#| cache: true
+
+s <- 3
+
+# Values of Sigma1[1, 1]
+s1 <- c(seq(0.1, s, by = 0.05), seq(s+1, 50, by = 1))
+
+# Fixed values of the other parameters
+nu <- 1
+Sigma1 <- Sigma2 <- matrix(c(s, 0.3, 0.3, 1), nrow = 2)
+Sigma1[1, 1] <- NA
+
+# Values of lambda*nu1/nu2
+invS2 <- solve(Sigma2)
+lambdanu <- sapply(s1, function(s) {
+  Sigma1[1, 1] <- s
+  sort(eigen(Sigma1 %*% invS2, only.values = TRUE)$values, decreasing = FALSE)
+})
+ln1 <- lambdanu[1, ]
+lnp <- lambdanu[2, ]
+
+# Renyi divergence, beta = 0.25
+b <- 0.25
+renyi_0_25 <- sapply(s1, function(s1) {
+  Sigma1[1, 1] <- s1
+  diststudent(nu1 = nu, Sigma1 = Sigma1, nu2 = nu, Sigma2 = Sigma2,
+              dist = "renyi", bet = b)
+})
+
+# Renyi divergence, beta = 1.5
+b <- 1.5
+renyi_1_5 <- sapply(s1, function(s1) {
+  Sigma1[1, 1] <- s1
+  diststudent(nu1 = nu, Sigma1 = Sigma1, nu2 = nu, Sigma2 = Sigma2,
+              dist = "renyi", bet = b)
+})
+
+# Battacharyya divergence
+bhattacharyya <- sapply(s1, function(s1) {
+  Sigma1[1, 1] <- s1
+  diststudent(nu1 = nu, Sigma1 = Sigma1, nu2 = nu, Sigma2 = Sigma2,
+              dist = "bhattacharyya")
+})
+
+# Hellinger divergence
+hellinger <- sapply(s1, function(s1) {
+  Sigma1[1, 1] <- s1
+  diststudent(nu1 = nu, Sigma1 = Sigma1, nu2 = nu, Sigma2 = Sigma2,
+              dist = "hellinger")
+})
+
+# Kullback-Leibler divergence
+kullback_leibler <- sapply(s1, function(s1) {
+  Sigma1[1, 1] <- s1
+  kld(Sigma1 = Sigma1, Sigma2 = Sigma2, nu1 = nu, nu2 = nu,
+      distribution = "mtd")
+})
+
+# Table of the results
+divS1 <- data.frame(
+  s1 = s1, ln1 = ln1, lnp = lnp,
+  renyi_0_25 = renyi_0_25,
+  renyi_1_5 = renyi_1_5,
+  bhattacharyya = bhattacharyya,
+  hellinger = hellinger,
+  kullback_leibler = kullback_leibler
+)
+
+par(mar = c(4.1, 4.1, 3.1, 2.1))
+
+plot(renyi_0_25~s1, data = divS1, type = "b", pch = 16,
+     xlab = substitute(Sigma[1][1]), ylab = "Divergence")
+axis(side = 1, at = Sigma2[1, 1], cex.axis = 1.2)
+
+plot(renyi_1_5~s1, data = divS1, type = "b", pch = 16,
+     xlab = substitute(Sigma[1][1]), ylab = "Divergence")
+axis(side = 1, at = Sigma2[1, 1], cex.axis = 1.2)
+
+plot(bhattacharyya~s1, data = divS1, type = "b", pch = 16,
+     xlab = substitute(Sigma[1][1]), ylab = "Divergence")
+axis(side = 1, at = Sigma2[1, 1], cex.axis = 1.2)
+
+plot(hellinger~s1, data = divS1, type = "b", pch = 16,
+     xlab = substitute(Sigma[1][1]), ylab = "Divergence")
+axis(side = 1, at = Sigma2[1, 1], cex.axis = 1.2)
+
+plot(kullback_leibler~s1, data = divS1, type = "b", pch = 16,
+     xlab = substitute(Sigma[1][1]), ylab = "Divergence")
+axis(side = 1, at = Sigma2[1, 1], cex.axis = 1.2)
+
+```
+
+#### Among the scale matrix: second situation {.unnumbered .unlisted}
+
+Let $\mathbf{X}^1 \sim MTD(\mathbf{0}, \nu, \boldsymbol{\Sigma}_1)$ and
+$\mathbf{X}^2 \sim MTD(\mathbf{0}, \nu, \boldsymbol{\Sigma}_2)$
+
+where $\nu = 1.5$,
+$\boldsymbol{\Sigma}_2 = \left(\begin{array}{cc}
+1 & 0.3 \\
+0.3 & 1
+\end{array}\right)$
+and $\boldsymbol{\Sigma}_1 = s \ \boldsymbol{\Sigma}_2$,
+$s \in ]0 ; 70]$.
+
+The results are showed in @fig-divsigma12.
+
+```{r}
+#| label: fig-divsigma12
+#| echo: false
+#| fig-cap: "Divergence between the distributions $\\mathbf{X}^1$ et $\\mathbf{X}^2$"
+#| fig-subcap:
+#|    - "Renyi ($\\beta = 0.25$)"
+#|    - "Renyi ($\\beta = 1.5$)"
+#|    - "Bhattacharyya"
+#|    - "Hellinger"
+#|    - "Kullback-Leibler"
+#| layout-ncol: 2
+#| fig-width: 7
+#| fig-height: 3.5
+#| cache: true
+
+# The parameters
+nu <- 1.5
+Sigma <- matrix(c(1, 0.3, 0.3, 1), nrow = 2)
+
+# Values of the proportionality coefficient
+s <- c(seq(0.05, 1, by = 0.05), seq(2, 70, by = 2))
+
+# Renyi divergence, beta = 0.25
+b <- 0.25
+renyi_0_25 <- sapply(s, function(s) {
+  diststudent(nu1 = nu, Sigma1 = s*Sigma, nu2 = nu, Sigma2 = Sigma,
+              dist = "renyi", bet = b)
+})
+
+# Renyi divergence, beta = 1.5
+b <- 1.5
+renyi_1_5 <- sapply(s, function(s) {
+  diststudent(nu1 = nu, Sigma1 = s*Sigma, nu2 = nu, Sigma2 = Sigma,
+              dist = "renyi", bet = b)
+})
+
+# Battacharyya divergence
+bhattacharyya <- sapply(s, function(s) {
+  diststudent(nu1 = nu, Sigma1 = s*Sigma, nu2 = nu, Sigma2 = Sigma,
+              dist = "bhattacharyya")
+})
+
+# Hellinger divergence
+hellinger <- sapply(s, function(s) {
+  diststudent(nu1 = nu, Sigma1 = s*Sigma, nu2 = nu, Sigma2 = Sigma,
+              dist = "hellinger")
+})
+
+# Kullback-Leibler divergence
+kullback_leibler <- sapply(s, function(s) {
+  kld(Sigma1 = s*Sigma, Sigma2 = Sigma, nu1 = nu, nu2 = nu,
+      distribution = "mtd")
+})
+
+# Table of the results
+divSigma <- data.frame(
+  facteur = s,
+  renyi_0_25 = renyi_0_25,
+  renyi_1_5 = renyi_1_5,
+  bhattacharyya = bhattacharyya,
+  hellinger = hellinger,
+  kullback_leibler = kullback_leibler
+)
+
+
+par(mar = c(4.1, 4.1, 3.1, 2.1))
+
+plot(renyi_0_25~facteur, data = divSigma, type = "b", pch = 16,
+     xlab = "s", ylab = "Divergence")
+axis(side = 1, at = 1, labels = 1, cex.axis = 1.2)
+
+plot(renyi_1_5~facteur, data = divSigma, type = "b", pch = 16,
+     xlab = "s", ylab = "Divergence")
+axis(side = 1, at = 1, labels = 1, cex.axis = 1.2)
+
+plot(bhattacharyya~facteur, data = divSigma, type = "b", pch = 16,
+     xlab = "s", ylab = "Divergence")
+axis(side = 1, at = 1, labels = 1, cex.axis = 1.2)
+
+plot(hellinger~facteur, data = divSigma, type = "b", pch = 16,
+     xlab = "s", ylab = "Divergence")
+axis(side = 1, at = 1, labels = 1, cex.axis = 1.2)
+
+plot(kullback_leibler~facteur, data = divSigma, type = "b", pch = 16,
+     xlab = "s", ylab = "Divergence")
+axis(side = 1, at = 1, labels = 1, cex.axis = 1.2)
+
+```
+
+<!-- # Other multivariate distributions  -->
+
+## Multivariate Cauchy distribution
+
+Let $\mathbf{X}$ be a random vector of $\mathbb{R}^p$ from a
+multivariate Cauchy distribution (MCD) with location vector
+$\boldsymbol{\mu}$ and scale matrix $\boldsymbol{\Sigma}$, which is a $p \times p$
+symmetric, positive definite matrix. Its pdf is
+given by: $$
+    \displaystyle{ f(\mathbf{x}|\boldsymbol{\mu}, \boldsymbol{\Sigma}) = \frac{\Gamma\left(\frac{1+p}{2}\right)}{\pi^{p/2} \Gamma\left(\frac{1}{2}\right) |\boldsymbol{\Sigma}|^\frac{1}{2} \left[ 1 + (\mathbf{x}-\boldsymbol{\mu})^T \boldsymbol{\Sigma}^{-1} (\mathbf{x}-\boldsymbol{\mu}) \right]^\frac{1+p}{2}} }
+$$
+
+where $\Gamma(\cdot)$ is the gamma function
+
+The MCD is a particular case of the multivariate $t$-distribution with
+$\nu = 1$. Hence, a sample from a MCD with location parameter
+$\boldsymbol{\mu}$ and dispersion matrix $\boldsymbol{\Sigma}$ can be generated using
+@eq-rmtd with $\nu = 1$:
+
+$$
+    \displaystyle{\mathbf{X} = \boldsymbol{\mu} + \frac{\mathbf{Y}}{\sqrt{U}}}
+$$ {#eq-rmcd} where $\mathbf{Y}$ is generated from a centered Gaussian
+distribution with covariance matrix $\boldsymbol{\Sigma}$ and $U$ is distributed
+according to a Chi-squared distribution with $\nu=1$ degree of freedom.
+
+### Parameter estimation
+
+To estimate the parameters of a MCD, we use the same method as for the
+MTD (@sec-est_mtd) setting $\nu = 1$. Then the algorithm presented in
+@sec-est_mtd becomes:
+
+1.  Initialization of the parameters
+    $\theta'=({\boldsymbol{\mu}}',{\boldsymbol{\Sigma}}')$
+
+2.  **until** convergence **do**
+
+    -   Compute
+        $\mathbb{E}_{V|\mathbf{X}}\{V_i |\mathbf{x}_i,\theta'\}=\displaystyle{\frac{1+p}{1+(\mathbf{x}_i-\boldsymbol{\mu}')^T\boldsymbol{\Sigma}'^{-1}(\mathbf{x}_i-\boldsymbol{\mu}')}}$
+
+    -   Compute
+        $\mathbb{E}_{V|\mathbf{X}}\{\ln V_i|\mathbf{x}_i,\theta'\}=\psi(\frac{1+p}{2}) -\ln \frac{1}{2}\bigg[1+(\mathbf{x}_i-\boldsymbol{\mu}')^T\boldsymbol{\Sigma}'^{-1}(\mathbf{x}_i-\boldsymbol{\mu}')\bigg]$
+
+    -   Estimate
+        $\hat{\boldsymbol{\mu}} = \frac{\sum_{i=1}^{N}\mathbf{x}_i\mathbb{E}_{V|\mathbf{X}}\{V_i|\mathbf{x}_i,\theta'\}}{\sum_{i=1}^{N}\mathbb{E}_{V|\mathbf{X}}\{V_i|\mathbf{x}_i,\theta'\}}$
+
+    -   Estimate
+        $\hat{\boldsymbol{\Sigma}}=\frac{1}{N}\sum_{i=1}^{N}\mathbb{E}_{V|\mathbf{X}}\{V_i|\mathbf{x}_i,\theta'\}(\mathbf{x}_i-\boldsymbol{\mu}')(\mathbf{x}_i-\boldsymbol{\mu}')^T$
+
+### Rényi divergence {#sec-renyimcd}
+
+Let $\mathbf{X}^1$ and $\mathbf{X}^2$ be two random vectors of
+$\mathbb{R}^p$ from MCDs with pdf given by:
+$$\displaystyle{ f_{\mathbf{X}^1}\left(\mathbf{x}|\boldsymbol{\Sigma}_1\right) = f_{\mathbf{X}^1}\left(\mathbf{x}|\mathbf{0}, \boldsymbol{\Sigma}_1\right) = \frac{\Gamma\left(\frac{1+p}{2}\right)}{\pi^{p/2} \Gamma\left(\frac{1}{2}\right) |\boldsymbol{\Sigma}_1|^\frac{1}{2} \left[ 1 + \mathbf{x}^T \boldsymbol{\Sigma}_1^{-1} \mathbf{x} \right]^\frac{1+p}{2}} }$$
+and
+$$\displaystyle{ f_{\mathbf{X}^2}\left(\mathbf{x}|\boldsymbol{\Sigma}_2\right) = f_{\mathbf{X}^2}\left(\mathbf{x}|\mathbf{0}, \boldsymbol{\Sigma}_2\right) =  \frac{\Gamma\left(\frac{1+p}{2}\right)}{\pi^{p/2} \Gamma\left(\frac{1}{2}\right) |\boldsymbol{\Sigma}_2|^\frac{1}{2} \left[ 1 + \mathbf{x}^T \boldsymbol{\Sigma}_2^{-1} \mathbf{x} \right]^\frac{1+p}{2}} }$$
+
+We consider that $\boldsymbol{\mu}=0$.
+As the MCD is a particular case of the MTD,
+the Rényi divergence between $\mathbf{X}^1$ and $\mathbf{X}^2$
+can be computed using @eq-rdmtd, setting $\nu_1 = 1$ and $\nu_2 = 1$.
+
+### Kullback-Leibler divergence
+
+Let $\mathbf{X}^1$ and $\mathbf{X}^2$ be two random vectors of
+$\mathbb{R}^p$ from MCDs where $\boldsymbol{\mu}=0$. Let
+$\lambda_1, \dots, \lambda_p$ be the eigenvalues of the square matrix
+$\boldsymbol{\Sigma}_1 \boldsymbol{\Sigma}_2^{-1}$, sorted in increasing
+order: $\lambda_1 < \dots < \lambda_p$.
+
+From @sec-kldt, the KLD to $\mathbf{X}^1$ from $\mathbf{X}^2$ (@eq-kl)
+is given by (@bouhlel22):
+
+$$
+D_{KL}(X_1||X_2) = \displaystyle{-\frac{1}{2} \ln{ \prod_{i=1}^p{\lambda_i}} - \frac{1+p}{2} \times D}
+$$
+
+where $D$ depends on the values of $\lambda_1, \dots, \lambda_p$:
+
+-   If $\lambda_1 < 1$ and $\lambda_p > 1$: $$
+    \begin{aligned}
+    D = & \displaystyle{ -\ln{\lambda_p + \frac{\partial}{\partial a} \bigg\{ F_D^{(p)} \bigg( a, \underbrace{\frac{1}{2}, \dots, \frac{1}{2}, a + \frac{1}{2}}_p ; a + \frac{1+p}{2} ; 1 - \frac{\lambda_1}{\lambda_p}, \dots, 1 - \frac{\lambda_{p-1}}{\lambda_p}, 1 - \frac{1}{\lambda_p} \bigg) \bigg\}\bigg|_{a=0} }}
+    \end{aligned}
+    $$ {#eq-klmcd1}
+-   If $\lambda_p < 1$: $$
+      \displaystyle{ D = \frac{\partial}{\partial a} \bigg\{ F_D^{(p)} \bigg( a, \underbrace{\frac{1}{2}, \dots, \frac{1}{2}}_p ; a + \frac{1+p}{2} ; 1 - \lambda_1, \dots, 1 - \lambda_p \bigg) \bigg\}\bigg|_{a=0} }
+      $$ {#eq-klmcd2}
+-   If $\lambda_1 > 1$: $$
+      \displaystyle{ D = \prod_{i=1}^p\frac{1}{\sqrt{\lambda_i}} \times \frac{\partial}{\partial a} \bigg\{ F_D^{(p)} \bigg( \frac{1+p}{2}, \underbrace{\frac{1}{2}, \dots, \frac{1}{2}}_p ; a + \frac{1+p}{2} ; 1 - \frac{1}{\lambda_1}, \dots, 1 - \frac{1}{\lambda_p} \bigg) \bigg\}\bigg|_{a=0} }
+      $$ {#eq-klmcd3}
+
+### Study of the divergence {#sec-divmtd}
+
+As we did for the MTD, we look here how the divergence between two
+multivariate Cauchy distributions depends on the values of the parameters.
+
+Let:
+$\mathbf{X}^1 \sim f_{\mathbf{X}^1}(\mathbf{x}|\boldsymbol{0}, \boldsymbol{\Sigma}_1)$
+and
+$\mathbf{X}^2 \sim f_{\mathbf{X}^2}(\mathbf{x}|\boldsymbol{0}, \boldsymbol{\Sigma}_2)$.
+
+In the examples below, the divergences between $\mathbf{X}^1$ and $\mathbf{X}^2$
+are computed using the functions `diststudent` (Rényi, Bhattacharyya and
+Hellinger divergences, setting $\nu_1 = \nu_2 = 1$, see @sec-renyimcd) and
+`kld` from the [`multvardiv`](https://CRAN.R-project.org/package=multvardiv)
+package.
+
+The R codes which produce these graphics are given in appendix,
+(@sec-append_divMCD).
+
+#### Among the scale matrix: first situation {.unnumbered .unlisted}
+
+Let $\mathbf{X}^1 \sim MCD(\mathbf{0}, \boldsymbol{\Sigma}_1)$ and
+$\mathbf{X}^2 \sim MCD(\mathbf{0}, \boldsymbol{\Sigma}_2)$
+
+where $\boldsymbol{\boldsymbol{\Sigma}}_2 = \left(\begin{array}{cc}
+3 & 0.3 \\
+0.3 & 1
+\end{array}\right)$
+et $\boldsymbol{\boldsymbol{\Sigma}}_1 = \left(\begin{array}{cc}
+s_1 & 0.3 \\
+0.3 & 1
+\end{array}\right)$, $s_1 \in ]0 ; 70]$.
+
+The results are showed in @fig-divsigma11cauchy.
+For each of these divergences,
+$D_R^{\beta}(\mathbf{X}^1 \parallel \mathbf{X}^2) = 0=D_{KL}(\mathbf{X}^1 \parallel \mathbf{X}^2)$ when $s_1 = 3$.
+For $s_1 \in ]0; 3]$, the divergence decreases quickly to 0,
+then for $s_1 > 3$, it increases slowly.
+
+```{r}
+#| label: fig-divsigma11cauchy
+#| echo: false
+#| fig-cap: "Divergence between the distributions $\\mathbf{X}^1$ et $\\mathbf{X}^2$"
+#| fig-subcap:
+#|    - "Renyi ($\\beta = 0.25$)"
+#|    - "Renyi ($\\beta = 1.5$)"
+#|    - "Bhattacharyya"
+#|    - "Hellinger"
+#|    - "Kullback-Leibler"
+#| layout-ncol: 2
+#| fig-width: 7
+#| fig-height: 3.5
+#| cache: true
+
+s <- 3
+
+# Values of Sigma1[1, 1]
+s1 <- c(seq(0.1, s, by = 0.05), seq(s+1, 70, by = 1))
+
+# Values of the other parameters
+nu <- 1
+Sigma1 <- Sigma2 <- matrix(c(s, 0.3, 0.3, 1), nrow = 2)
+Sigma1[1, 1] <- NA
+
+# Renyi divergence, beta = 0.25
+b <- 0.25
+renyi_0_25 <- sapply(s1, function(s1) {
+  Sigma1[1, 1] <- s1
+  diststudent(nu1 = 1, Sigma1 = Sigma1, nu2 = 1, Sigma2 = Sigma2,
+              dist = "renyi", bet = b)
+})
+
+# Renyi divergence, beta = 1.5
+b <- 1.5
+renyi_1_5 <- sapply(s1, function(s1) {
+  Sigma1[1, 1] <- s1
+  diststudent(nu1 = 1, Sigma1 = Sigma1, nu2 = 1, Sigma2 = Sigma2,
+              dist = "renyi", bet = b)
+})
+
+# Battacharyya divergence
+bhattacharyya <- sapply(s1, function(s1) {
+  Sigma1[1, 1] <- s1
+  diststudent(nu1 = 1, Sigma1 = Sigma1, nu2 = 1, Sigma2 = Sigma2,
+              dist = "bhattacharyya")
+})
+
+# Hellinger divergence
+hellinger <- sapply(s1, function(s1) {
+  Sigma1[1, 1] <- s1
+  diststudent(nu1 = 1, Sigma1 = Sigma1, nu2 = 1, Sigma2 = Sigma2,
+              dist = "hellinger")
+})
+
+# Kullback-Leibler divergence
+kullback_leibler <- sapply(s1, function(s1) {
+  Sigma1[1, 1] <- s1
+  kld(Sigma1 = Sigma1, Sigma2 = Sigma2, distribution = "mcd")
+})
+
+# Table of the results
+divS1 <- data.frame(
+  s1 = s1,
+  renyi_0_25 = renyi_0_25,
+  renyi_1_5 = renyi_1_5,
+  bhattacharyya = bhattacharyya,
+  hellinger = hellinger,
+  kullback_leibler = kullback_leibler
+)
+
+par(mar = c(4.1, 4.1, 3.1, 2.1))
+
+plot(renyi_0_25~s1, data = divS1, type = "b", pch = 16,
+     xlab = substitute(Sigma[1][1]), ylab = "Divergence")
+axis(side = 1, at = Sigma2[1, 1], cex.axis = 1.2)
+
+plot(renyi_1_5~s1, data = divS1, type = "b", pch = 16,
+     xlab = substitute(Sigma[1][1]), ylab = "Divergence")
+axis(side = 1, at = Sigma2[1, 1], cex.axis = 1.2)
+
+plot(bhattacharyya~s1, data = divS1, type = "b", pch = 16,
+     xlab = substitute(Sigma[1][1]), ylab = "Divergence")
+axis(side = 1, at = Sigma2[1, 1], cex.axis = 1.2)
+
+plot(hellinger~s1, data = divS1, type = "b", pch = 16,
+     xlab = substitute(Sigma[1][1]), ylab = "Divergence")
+axis(side = 1, at = Sigma2[1, 1], cex.axis = 1.2)
+
+plot(kullback_leibler~s1, data = divS1, type = "b", pch = 16,
+     xlab = substitute(Sigma[1][1]), ylab = "Divergence")
+axis(side = 1, at = Sigma2[1, 1], cex.axis = 1.2)
+
+```
+
+#### Among the scale matrix: second situation {.unnumbered .unlisted}
+
+Let $\mathbf{X}^1 \sim MCD(\mathbf{0}, \boldsymbol{\Sigma}_1)$ and
+$\mathbf{X}^2 \sim MCD(\mathbf{0}, \boldsymbol{\Sigma}_2)$
+
+where $\boldsymbol{\Sigma}_2 = \left(\begin{array}{cc}
+1 & 0.3 \\
+0.3 & 1
+\end{array}\right)$
+and $\boldsymbol{\Sigma}_1 = s \ \boldsymbol{\Sigma}_2$, $s \in ]0 ; 70]$.
+
+The results are showed in @fig-divsigma12.
+
+```{r}
+#| label: fig-divsigma12cauchy
+#| echo: false
+#| fig-cap: "Divergence between the distributions $\\mathbf{X}^1$ et $\\mathbf{X}^2$"
+#| fig-subcap:
+#|    - "Renyi ($\\beta = 0.25$)"
+#|    - "Renyi ($\\beta = 1.5$)"
+#|    - "Bhattacharyya"
+#|    - "Hellinger"
+#|    - "Kullback-Leibler"
+#| layout-ncol: 2
+#| fig-width: 7
+#| fig-height: 3.5
+#| cache: true
+
+# The parameters
+Sigma <- matrix(c(1, 0.3, 0.3, 1), nrow = 2)
+
+# Values of the proportionality coefficient
+s <- c(seq(0.05, 1, by = 0.05), seq(2, 70, by = 2))
+
+# Renyi divergence, beta = 0.25
+b <- 0.25
+renyi_0_25 <- sapply(s, function(s) {
+  diststudent(nu1 = 1, Sigma1 = s*Sigma, nu2 = 1, Sigma2 = Sigma,
+              dist = "renyi", bet = b)
+})
+
+# Renyi divergence, beta = 1.5
+b <- 1.5
+renyi_1_5 <- sapply(s, function(s) {
+  diststudent(nu1 = 1, Sigma1 = s*Sigma, nu2 = 1, Sigma2 = Sigma,
+              dist = "renyi", bet = b)
+})
+
+# Battacharyya divergence
+bhattacharyya <- sapply(s, function(s) {
+  diststudent(nu1 = 1, Sigma1 = s*Sigma, nu2 = 1, Sigma2 = Sigma,
+              dist = "bhattacharyya")
+})
+
+# Hellinger divergence
+hellinger <- sapply(s, function(s) {
+  diststudent(nu1 = 1, Sigma1 = s*Sigma, nu2 = 1, Sigma2 = Sigma,
+              dist = "hellinger")
+})
+
+# Kullback-Leibler divergence
+kullback_leibler <- sapply(s, function(s) {
+  kld(Sigma1 = s*Sigma, Sigma2 = Sigma, distribution = "mcd")
+})
+
+# Table of the results
+divSigma <- data.frame(
+  facteur = s,
+  renyi_0_25 = renyi_0_25,
+  renyi_1_5 = renyi_1_5,
+  bhattacharyya = bhattacharyya,
+  hellinger = hellinger,
+  kullback_leibler = kullback_leibler
+)
+
+par(mar = c(4.1, 4.1, 3.1, 2.1))
+
+plot(renyi_0_25~facteur, data = divSigma, type = "b", pch = 16,
+     xlab = "s", ylab = "Divergence")
+axis(side = 1, at = 1, labels = 1, cex.axis = 1.2)
+
+plot(renyi_1_5~facteur, data = divSigma, type = "b", pch = 16,
+     xlab = "s", ylab = "Divergence")
+axis(side = 1, at = 1, labels = 1, cex.axis = 1.2)
+
+plot(bhattacharyya~facteur, data = divSigma, type = "b", pch = 16,
+     xlab = "s", ylab = "Divergence")
+axis(side = 1, at = 1, labels = 1, cex.axis = 1.2)
+
+plot(hellinger~facteur, data = divSigma, type = "b", pch = 16,
+     xlab = "s", ylab = "Divergence")
+axis(side = 1, at = 1, labels = 1, cex.axis = 1.2)
+
+plot(kullback_leibler~facteur, data = divSigma, type = "b", pch = 16,
+     xlab = "s", ylab = "Divergence")
+axis(side = 1, at = 1, labels = 1, cex.axis = 1.2)
+
+```
+
+## Multivariate generalized Gaussian distribution
+
+Let $\mathbf{X}$ a random vector of $\mathbb{R}^p$ from a Multivariate
+generalized Gaussian distribution (MGGD) with mean vector
+$\boldsymbol{\mu}$, dispersion matrix $\boldsymbol{\Sigma}$ (symmetric, positive
+definite of dimension $p \times p$) and shape parameter $\beta > 0$. Its
+pdf is given by [@gomez; @bouhlel19]: $$
+    \displaystyle{f_\mathbf{X}\left(\mathbf{x}|\boldsymbol{\mu}, \boldsymbol{\Sigma}, \beta\right) = \frac{\Gamma\left(\frac{p}{2}\right)}{\pi^\frac{p}{2} \Gamma\left(\frac{p}{2 \beta}\right) 2^\frac{p}{2\beta}} \frac{\beta}{|\boldsymbol{\Sigma}|^\frac{1}{2}} e^{-\frac{1}{2}\left[ (\mathbf{x}-\boldsymbol{\mu})^T \boldsymbol{\Sigma}^{-1} (\mathbf{x}-\boldsymbol{\mu}) \right]^\beta}}
+$$ {#eq-mggd}
+
+where $\Gamma(\cdot)$ is the gamma function.
+<!-- Let $\mathbf{X}$ a random vector of $\mathbb{R}^p$ distributed according to a MGGD with mean vector $\boldsymbol{\mu} = \mathbf{0}$, dispersion matrix $\Sigma$ and shape parameter $\beta$. -->
+@gomez show that $\mathbf{X}$ has the same distribution as: $$
+    \displaystyle{\mathbf{X} = \boldsymbol{\mu} + \tau \boldsymbol{\Sigma}^{\frac{1}{2}} \mathbf{U}}
+$$ {#eq-rggd} where $\mathbf{U}$ is a random vector uniformly
+distributed on the unit sphere in $\mathbb{R}^p$ and $\tau$ is such that
+$\tau^{2\beta}$ is a random variable distributed according to a Gamma
+distribution with shape parameter $\displaystyle{\frac{p}{2\beta}}$ and
+scale parameter $2$. We use this property to simulate a sample from a
+MGGD.
+
+### Parameter estimation
+
+Let $\left( \mathbf{x}_1, \dots, \mathbf{x}_n \right)$ be $n$ $iid$
+random vectors distributed according to a MGGD with parameters
+$\boldsymbol{\mu}$, $\boldsymbol{\Sigma}$ and $\beta$. @pascal give a method to
+estimate these parameters.
+
+The dispersion matrix $\boldsymbol{\Sigma}$ can be normalized as follows: $$
+\boldsymbol{\Sigma} = m \mathbf M
+$$ {#eq-normalizeSigma} $\mathbf M$ being a symmetric, positive-definite matrix
+such that its trace is $tr(\mathbf M) = p$ and $m \in \mathbb{R}$.
+
+The estimations of the parameters $(\boldsymbol{\mu}, \mathbf M, m, \beta)$
+can be computed as follows:
+
+-   The mean vector $\boldsymbol{\mu}$ is estimated by calculating the
+    mean of $\left( \mathbf{x}_1, \dots, \mathbf{x}_n \right)$.
+-   If $\beta$ is known, $\mathbf M$ and $m$ can be estimated by: $$
+      \mathbf M = \frac{1}{n} \sum_{i=1}^n{\frac{n p}{\mathbf{y}_i + \mathbf{y}_i^{1-\beta} \sum_{j \neq i}{\mathbf{y}_j^\beta}} \mathbf{x}_i \mathbf{x}_i^T}
+      $$ {#eq-estggdM} and $$
+      m = \left( \frac{\beta}{p n} \sum_{i=1}^n{{\mathbf{y}_i}^\beta} \right)^\frac{1}{\beta}
+      $$ {#eq-estggdm} with
+    $\mathbf{y}_i = \mathbf{x}_i^T \mathbf M^{-1} \mathbf{x}_i$
+-   When the shape parameter $\beta$ is unknown, it is estimated using the
+    following relation: $$
+      \displaystyle{\frac{p n}{2 \sum_{i=1}^n{\mathbf{y}_i^\beta}} \sum_{i=1}^n{\left( \mathbf{y}_i^\beta \ln{\mathbf{y}_i} \right)} - \frac{p n}{2\beta} \left( \Psi(\frac{p}{2\beta}) + \ln{2} \right) - n - \frac{p n}{2\beta} \ \ln{\left( \frac{\beta}{p n}\sum_{i=1}^n{\mathbf{y}_i^\beta} \right)} = 0}
+      $$ {#eq-estggdbeta} where $\Psi$ is the digamma function:
+    $\displaystyle{\Psi(x) = \frac{d}{dx} \ln{\Gamma(x)} = \frac{\Gamma'(x)}{\Gamma(x)}}$
+
+Thus, an iterative algorithm is introduced by @pascal to estimate $\mathbf M$,
+$m$ and $\beta$:
+
+1.  Initialization of $\beta$ and $\mathbf M$
+
+2.  **until** convergence **do**
+
+    -   Estimation of $\mathbf M$ using one iteration of @eq-estggdM and
+        normalization
+    -   Estimation of $\beta$ using @eq-estggdbeta
+
+    **end until**
+
+3.  Estimation of $m$ using @eq-estggdm
+
+### Kullback-Leibler divergence
+
+Let $\mathbf{X}^1$ and $\mathbf{X}^2$ be two random vectors of
+$\mathbb{R}^p$ ($p > 1$) from centered MGGDs with pdf
+$$\displaystyle{f_{\mathbf{X}^1}(\mathbf{x}|\boldsymbol{\Sigma}_1, \beta_1) = f_{\mathbf{X}^1}\left(\mathbf{x}|\mathbf{0}, \boldsymbol{\Sigma}_1, \beta_1\right) = \frac{\Gamma\left(\frac{p}{2}\right)}{\pi^\frac{p}{2} \Gamma\left(\frac{p}{2 \beta_1}\right) 2^\frac{p}{2\beta_1}} \frac{\beta_1}{|\boldsymbol{\Sigma}_1|^\frac{1}{2}} e^{-\frac{1}{2}\left[ \mathbf{x}^T \boldsymbol{\Sigma}_1^{-1} \mathbf{x} \right]^{\beta_1}}}$$
+and
+$$\displaystyle{f_{\mathbf{X}^2}(\mathbf{x}|\boldsymbol{\Sigma}_2, \beta_2) = f_{\mathbf{X}^2}\left(\mathbf{x}|\mathbf{0}, \boldsymbol{\Sigma}_2, \beta_2\right) = \frac{\Gamma\left(\frac{p}{2}\right)}{\pi^\frac{p}{2} \Gamma\left(\frac{p}{2 \beta_2}\right) 2^\frac{p}{2\beta_2}} \frac{\beta_2}{|\boldsymbol{\Sigma}_2|^\frac{1}{2}} e^{-\frac{1}{2}\left[ \mathbf{x}^T \boldsymbol{\Sigma}_2^{-1} \mathbf{x} \right]^{\beta_2}}}$$
+
+```{=html}
+<!--The KLD of $\mathbf{X}^1$ from $\mathbf{X}^2$ is: $$
+    \begin{array}{ll}
+    \displaystyle{KL(\mathbf{X}^1||\mathbf{X}^2)} & \displaystyle{= \mathbb{E}_{X^1}\left[\ln\left(\frac{f_{\mathbf{X}^1}(\mathbf{X})}{f_{\mathbf{X}^2}(\mathbf{X})}\right)\right]} \\
+    & \displaystyle{= \int_{\mathbb{R}^p}{\ln \left( \frac{f_{\mathbf{X}^1}(\mathbf{x}|\boldsymbol{\Sigma}_1, \beta_1)}{f_{\mathbf{X}^2}(\mathbf{x}|\boldsymbol{\Sigma}_2, \beta_2)} \right) f_{\mathbf{X}^1}(\mathbf{x}|\boldsymbol{\Sigma}_1, \beta_1)\mathrm{d}\mathbf{x}}}
+    \end{array}
+$$ {#eq-kl}
+-->
+```
+
+Let $\lambda_1, \dots, \lambda_p$ be the eigenvalues of the square
+matrix $\boldsymbol{\Sigma}_1 \boldsymbol{\Sigma}_2^{-1}$ sorted in increasing order:
+${\lambda_1 < \dots < \lambda_{p-1} < \lambda_p}$. @bouhlel19 present an
+analytical expression of the KLD to $\mathbf{X}^1$ from $\mathbf{X}^2$:
+
+$$
+    \begin{aligned}
+    D_{KL}(\mathbf{X}^1||\mathbf{X}^2) = & \displaystyle{\ln\left( \frac{\beta_1 |\boldsymbol{\Sigma}_1|^{\frac{-1}{2}} \Gamma\left(\frac{p}{2\beta_2}\right)}{\beta_2 |\boldsymbol{\Sigma}_2|^{\frac{-1}{2}} \Gamma\left(\frac{p}{2\beta_1}\right)} \right) + \frac{p}{2}\left(\frac{1}{\beta_2} - \frac{1}{\beta_1}\right) \ln{2} - \frac{p}{2\beta_1} + 2^{\frac{\beta_2}{\beta_1}-1} \ \frac{\Gamma\left(\frac{\beta_2}{\beta_1}+\frac{p}{2\beta_1}\right)}{\Gamma\left(\frac{p}{2\beta_1}\right)}\ {\lambda_p}^{\beta_2}} \\
+    & \displaystyle{\times F_D^{(p-1)}\bigg(-\beta_2, \underbrace{\frac{1}{2}, \dots, \frac{1}{2}}_{p-1}, \frac{p}{2}; 1-\frac{\lambda_{p-1}}{\lambda_p}, \dots, 1-\frac{\lambda_1}{\lambda_p}\bigg)}
+    \end{aligned}
+$$ {#eq-klggd}
+
+<!-- where $F_D^{(n)}$ is the Lauricella $D$-hypergeometric function defined -->
+<!-- by: $$ -->
+<!--     F_D^{(n)}\left(a; b_1, \dots, b_n; c; x_1, \dots, x_n\right) = \sum_{m_1=0}^\infty \dots \sum_{m_n=0}^\infty{\frac{(a)_{m_1+\dots+m_n} (b_1)_{m_1} \dots (b_n)_{m_n}}{(c)_{m_1+\dots+m_n}} \ \frac{{x_1}^{m_1}}{m_1!} \dots \frac{{x_n}^{m_n}}{m_n!}} -->
+<!-- $$ {#eq-lauric} and the Pochhammer symbol $(q)_i$, where $q$ is a real -->
+<!-- and $i$ is a non-negative integer, is given by: $$ -->
+<!-- \displaystyle{ (q)_i = \frac{\Gamma(q+i)}{\Gamma(q)} =} \left\{ \begin{array}{ll} -->
+<!-- 1 & \text{if } i = 0 \\ -->
+<!-- \displaystyle{ q (q+1) \dots (q+i-1) } & \text{if } i \geq 1 -->
+<!-- \end{array} \right. -->
+<!-- $$ {#eq-pochhammer} -->
+
+#### Univariate case : $p=1$ {.unnumbered .unlisted}
+
+Let $X^1$ and $X^2$ be two random
+variables distributed according to centered generalized Gaussian
+distributions with pdf:
+$$\displaystyle{f_{X^1}(x|\sigma_1, \beta_1) = f_{X^1}\left(x|0, \sigma_1, \beta_1\right) = \frac{\beta_1}{\Gamma\left(\frac{1}{2 \beta_1}\right) 2^\frac{1}{2\beta_1}\sqrt{\sigma_1}} e^{-\frac{1}{2}\left(\frac{x^2}{\sigma_1}\right)^\beta}}$$
+and
+$$\displaystyle{f_{X^2}(x|\sigma_2, \beta_2) = f_{X^2}\left(x|0, \sigma_2, \beta_2\right) = \frac{\beta_2}{\Gamma\left(\frac{2}{2 \beta_2}\right) 2^\frac{1}{2\beta_2}\sqrt{\sigma_2}} e^{-\frac{1}{2}\left(\frac{x^2}{\sigma_2}\right)^\beta}}$$
+
+the KLD is given by: $$
+    D_{KL}(X^1||X^2) = \displaystyle{\ln\left( \frac{\frac{\beta_1}{\sqrt{\sigma_1}} \Gamma\left(\frac{1}{2\beta_2}\right)}{\frac{\beta_2}{\sqrt{\sigma_2}} \Gamma\left(\frac{1}{2\beta_1}\right)} \right) + \frac{1}{2}\left(\frac{1}{\beta_2} - \frac{1}{\beta_1}\right) \ln{2} - \frac{1}{2\beta_1} + 2^{\frac{\beta_2}{\beta_1}-1} \ \frac{\Gamma\left(\frac{\beta_2}{\beta_1}+\frac{1}{2\beta_1}\right)}{\Gamma\left(\frac{1}{2\beta_1}\right)}\ \left(\frac{\sigma_1}{\sigma_2}\right)^{\beta_2}}
+$$
+
+### Study of the divergence
+
+As for the MTD and the MCD, we look here how the divergence between two
+multivariate generalized Gaussian distributions depend on the values of
+the parameters.
+
+Let:
+$\mathbf{X}^1 \sim f_{\mathbf{X}^1}(\mathbf{x}|\boldsymbol{0}, \boldsymbol{\Sigma}_1, \beta_1)$
+and
+$\mathbf{X}^2 \sim f_{\mathbf{X}^2}(\mathbf{x}|\boldsymbol{0}, \boldsymbol{\Sigma}_2, \beta_2)$.
+
+In the examples below, the divergences between $\mathbf{X}^1$ and $\mathbf{X}^2$
+are computed using the function
+`kld` from the [`multvardiv`](https://CRAN.R-project.org/package=multvardiv)
+package.
+
+The R codes which produce these graphics are given in appendix (@sec-append_divMGGD).
+
+#### Among the scale matrix: first situation {.unnumbered .unlisted}
+
+Let $\mathbf{X}^1 \sim MGGD(\mathbf{0}, \boldsymbol{\Sigma}_1, \beta_1)$
+and $\mathbf{X}^2 \sim MGGD(\mathbf{0}, \boldsymbol{\Sigma}_2, \beta_2)$
+
+where $\boldsymbol{\boldsymbol{\Sigma}}_2 = \left(\begin{array}{cc}
+10 & 0.3 \\
+0.3 & 1
+\end{array}\right)$,
+$\boldsymbol{\boldsymbol{\Sigma}}_1 = \left(\begin{array}{cc}
+s_1 & 0.3 \\
+0.3 & 1
+\end{array}\right)$, $s_1 \in ]0 ; 100]$ and $\beta_1 = \beta_2 = 0.74$.
+
+The results are showed in @fig-divsigma11ggd.
+For each of these divergences,
+$D_{KL}(\mathbf{X}^1 \parallel \mathbf{X}^2) = 0$ when $s_1 = 10$.
+For $s_1 \in ]0; 10]$, the divergence decreases quickly to 0,
+then for $s_1 > 10$, it increases slowly.
+
+```{r}
+#| label: fig-divsigma11ggd
+#| echo: false
+#| fig-cap: "Kullback-Leibler divergence between the distributions $\\mathbf{X}^1$ and $\\mathbf{X}^2$"
+#| fig-width: 4
+#| fig-height: 2.35
+#| cache: true
+
+s <- 10
+
+# Values of Sigma1[1, 1]
+s1 <- c(seq(0.1, s, by = 0.05), seq(s+1, 100, by = 1))
+
+# Fixed values of the other parameters
+Sigma1 <- Sigma2 <- matrix(c(s, 0.3, 0.3, 1), nrow = 2)
+Sigma1[1, 1] <- NA
+bet <- 0.74
+
+# Kullback-Leibler divergence
+kullback_leibler <- sapply(s1, function(s1) {
+  Sigma1[1, 1] <- s1
+  kld(Sigma1 = Sigma1, Sigma2 = Sigma2, beta1 = bet, beta2 = bet,
+      distribution = "mggd")
+})
+
+# Table of the results
+divS1 <- data.frame(
+  s1 = s1,
+  kullback_leibler = kullback_leibler
+)
+
+par(mar = c(4.1, 4.1, 3.1, 2.1))
+
+plot(kullback_leibler~s1, data = divS1, type = "b", pch = 16,
+     xlab = substitute(Sigma[1][1]), ylab = "Divergence")
+axis(side = 1, at = Sigma2[1, 1], cex.axis = 1.2)
+
+```
+
+#### Among the scale matrix: second situation {.unnumbered .unlisted}
+
+Let $\mathbf{X}^1 \sim MGGD(\mathbf{0}, \boldsymbol{\Sigma}_1, \beta_1)$
+and $\mathbf{X}^2 \sim MGGD(\mathbf{0}, \boldsymbol{\Sigma}_2, \beta_2)$
+
+$\boldsymbol{\Sigma}_2 = \left(\begin{array}{cc}
+1 & 0.3 \\
+0.3 & 1
+\end{array}\right)$,
+$\boldsymbol{\Sigma}_1 = s \ \boldsymbol{\Sigma}_2$, $s \in ]0 ; 25]$
+and $\beta_1 = \beta_2 = 0.74$.
+
+The results are showed in @fig-divsigma12ggd.
+
+```{r}
+#| label: fig-divsigma12ggd
+#| echo: false
+#| fig-cap: "Kullback-Leibler divergence between the distributions $\\mathbf{X}^1$ and $\\mathbf{X}^2$"
+#| fig-width: 4
+#| fig-height: 2.35
+#| cache: true
+
+# The parameters
+Sigma <- matrix(c(1, 0.3, 0.3, 1), nrow = 2)
+bet <- 0.74
+
+# Values of the proportionality coefficient
+s <- c(seq(0.01, 1, by = 0.05), seq(2, 25, by = 2))
+
+# Kullback-Leibler divergence
+kullback_leibler <- sapply(s, function(s) {
+  kld(Sigma1 = s*Sigma, Sigma2 = Sigma, beta1 = bet, beta2 = bet,
+      distribution = "mggd")
+})
+
+# Table of the results
+divSigma <- data.frame(
+  facteur = s,
+  kullback_leibler = kullback_leibler
+)
+
+par(mar = c(4.1, 4.1, 3.1, 2.1))
+
+plot(kullback_leibler~facteur, data = divSigma, type = "b", pch = 16,
+     xlab = "s", ylab = "Divergence")
+axis(side = 1, at = 1, labels = 1, cex.axis = 1.2)
+
+```
+
+#### Among the shapes of the distributions {.unnumbered .unlisted}
+
+Let $\mathbf{X}^1 \sim MGGD(\mathbf{0}, \boldsymbol{\Sigma}, \beta_1)$
+and $\mathbf{X}^2 \sim MGGD(\mathbf{0}, \boldsymbol{\Sigma}, \beta_2)$
+
+where $\beta_1$ take values in $]0 ; 22]$, $\beta_2 = 0.74$, and
+$\boldsymbol{\Sigma} = \left(\begin{array}{cc}
+1 & 0.3 \\
+0.3 & 1
+\end{array}\right)$.
+
+The results are showed in @fig-divbeta.
+Obviously, for each of these divergences,
+$D_{KL}(\mathbf{X}^1 \parallel \mathbf{X}^2)= 0$ when $\beta_1 = \beta_2$.
+For $\beta_1 \in ]0; \beta_2]$, the divergence decreases quickly to 0,
+then for $\beta_1 \in ]\beta_2; +\infty]$, it increases slowly and converges
+to a limit.
+
+```{r}
+#| label: fig-divbeta
+#| echo: false
+#| fig-cap: "Kullback-Leibler divergence between the distributions $\\mathbf{X}^1$ et $\\mathbf{X}^2$"
+#| warning: false
+#| fig-width: 4
+#| fig-height: 2.35
+#| cache: true
+
+bet <- 0.74
+
+# Values of beta1
+beta1 <- c(seq(0.05, bet, by = 0.01), seq(bet+1, 22, by = 2))
+
+# Fixed values of the other parameters
+beta2 <- bet
+Sigma <- matrix(c(1, 0.3, 0.3, 1), nrow = 2)
+
+# Kullback-Leibler divergence
+kullback_leibler <- sapply(beta1, function(b) {
+  kld(Sigma1 = Sigma, Sigma2 = Sigma,
+      beta1 = b, beta2 = beta2,
+      distribution = "mggd")
+})
+
+# Table of the results
+divbeta <- data.frame(
+  beta1 = beta1,
+  kullback_leibler = kullback_leibler
+)
+
+par(mar = c(4.1, 4.1, 3.1, 2.1))
+
+plot(kullback_leibler~beta1, data = divbeta, type = "b", pch = 16,
+     xlab = substitute(beta[1]), ylab = "Divergence", ylim = c(-0.1, 4))
+axis(side = 1, at = beta2, cex.axis = 1.2)
+
+```
+
+# The multvardiv package
+
+<!-- ## Other probability distributions: Multivariate Cauchy distributions, Multivariate generalized Gaussian distributions -->
+
+The [`multvardiv`](https://forge.inrae.fr/imhorphen/multvardiv) package
+(@tbl-multvardiv) provides functions to compute the divergence between two
+multivariate $t$ distributions. This section presents these functions,
+with an example.
+There are also functions to compute the divergence between two Cauchy or
+generalized Gaussian distributions.
+
+```{r}
+#| label: "tbl-multvardiv"
+#| echo: false
+#| eval: true
+#| output: asis
+tabfcts <- data.frame(
+  "Multivariate Distribution" = c("$t$", "Cauchy", "MGGD"),
+  "Probability density function" = c("`dmtd`", "`dmcd`", "`dmggd`"),
+  "Simulation" = c("`rmtd`", "`rmcd`", "`rmggd`"),
+  "Parameter estimation" = c("`estparmtd`", "`estparmcd`", "`estparmggd`"),
+  "Rényi, Bhattacharyya or Hellinger divergence" = c("`diststudent`", "", ""),
+  "Kullback-Leibler divergence" = c("`kldstudent`", "`kldcauchy`", "`kldggd`")
+)
+knitr::kable(tabfcts,
+             col.names = c("Multivariate Distribution", "Probability density function",
+                           "Simulation", "Parameter estimation",
+                           "Rényi, Bhattacharyya or Hellinger divergence",
+                           "Kullback-Leibler divergence"),
+             caption = "multvardiv package: the functions for MTD, MCD and MGGD")
+```
+
+Furthermore, two functions allow to plot the probability density of a
+bivariate $t$, Cauchy or generalized Gaussian distribution:
+
+-   `plotmvd`: 3D-plot
+-   `contourmvd`: contour plot
+
+Two other functions are useful for some computation:
+
+-   `lauricella`: Lauricella D-Hypergeometric Function
+    <!-- *   `lnpochhammer`: logarithm of the Pochhammer Symbol -->
+-   `pochhammer`: the Pochhammer symbol
+
+## Example dataset: simulation from a multivariate $t$-distribution
+
+As an example, we simulate two datasets.
+
+```{r}
+#| echo: true
+#| include: false
+#| eval: false
+nu1 <- 2
+Sigma1 <- rbind(c(2, 1.2, 0.4), c(1.2, 2, 0.6), c(0.4, 0.6, 2))
+nu2 <- 4
+Sigma2 <- rbind(c(1, 0.3, 0.1), c(0.3, 1, 0.4), c(0.1, 0.4, 1))
+Sigma1
+Sigma2
+```
+
+The `rmtd` function simulates a sample from a MTD:
+
+```{r}
+#| echo: true
+set.seed(1234)
+x1 <- rmtd(10000, nu = 2, mu = rep(0, 3),
+           Sigma = rbind(c(2, 1.2, 0.4), c(1.2, 2, 0.6), c(0.4, 0.6, 2)))
+head(x1)
+```
+
+```{r}
+#| echo: true
+set.seed(1234)
+x2 <- rmtd(10000, nu = 4, mu = rep(0, 3),
+           Sigma = rbind(c(1, 0.3, 0.1), c(0.3, 1, 0.4), c(0.1, 0.4, 1)))
+head(x2)
+```
+
+## Parameter estimation
+
+The `estparmtd` function allows to estimate the parameters of a MTD from
+the data. It returns the estimations of the parameters, as a list of
+three elements `$nu`, `$mu`, `$Sigma`:
+
+```{r}
+#| echo: true
+par1 <- estparmtd(x1)
+par1
+```
+
+```{r}
+#| echo: true
+par2 <- estparmtd(x2)
+par2
+```
+
+As the `estparmtd` function uses an iterative algorithm, the returned
+result has two attributes `attr(,"epsilon")` and `attr(,"k")`, which
+indicate the precision of the estimation of $\nu$ and the number of
+iterations that are necessary to reach this precision.
+
+An optional argument `eps` (default $10^{-6}$) allows to give the
+desired precision for the estimation of the `$nu` parameter:
+
+```{r}
+#| echo: true
+estparmtd(x1, eps = 1e-4)
+```
+
+The precision `attr(,"epsilon")` is given by the `eps` argument.
+<!-- except when the convergence was too slow and the precision could not be reached -->
+<!-- (due to computational problems). -->
+<!-- In the latter case, the value of `attr(,"epsilon")` is the precision that could actually be reached. -->
+
+## Rényi, Bhattacharyya and Hellinger divergences
+
+The `diststudent` function computes the RD, BD or HD between two MTDs
+with location parameter $\boldsymbol{\mu} = \mathbf{0}$.
+
+By default, the `diststudent` function computes the RD of order $\beta$.
+The order is given by the `bet` argument.
+
+```{r}
+#| echo: true
+nu1 <- par1$nu; Sigma1 = par1$Sigma
+nu2 <- par2$nu; Sigma2 = par2$Sigma
+```
+
+```{r}
+#| echo: true
+rd12 <- diststudent(nu1, Sigma1, nu2, Sigma2, bet = 0.5)
+```
+
+This needs that the condition given by @eq-cond_delta is verified.
+If it is not, there is a warning and `NaN` is returned.
+
+The calculation of the Lauricella $D$-hypergeometric function, involved
+in the calculation of the RD between two MTDs (see [@eq-rdmtd; @eq-lauric])
+uses an iterative algorithm. The optional `eps` argument (default `1e-6`)
+allows to indicate the desired precision for this calculation:
+
+```{r}
+#| echo: true
+#| eval: false
+rd12 <- diststudent(nu1, Sigma1, nu2, Sigma2, bet = 0.5, eps = 1e-06)
+```
+
+The returned result is the RD with two attributes `attr(,"epsilon")`
+(precision of the Lauricella function, given by the `eps` argument) and
+`attr(,"k")` (number of iterations):
+
+```{r}
+#| echo: true
+rd12
+```
+
+The optional `dist` argument allows to indicate the divergence:
+
+-   Rényi (default):
+
+    ```{r}
+    #| echo: true
+    diststudent(nu1, Sigma1, nu2, Sigma2, dist = "renyi", bet = 0.5)
+    ```
+
+-   Bhattacharyya:
+
+    ```{r}
+    #| echo: true
+    diststudent(nu1, Sigma1, nu2, Sigma2, dist = "bhattacharyya")
+    ```
+
+-   Hellinger:
+
+    ```{r}
+    #| echo: true
+    diststudent(nu1, Sigma1, nu2, Sigma2, dist = "hellinger")
+    ```
+
+The `bet` argument is required for the RD. It is omitted for the BD or
+the HD.
+
+## Kullback-Leibler divergence {#sec-kldiv}
+
+The `kldstudent` function computes the KLD between two MTDs with
+location parameter $\boldsymbol{\mu} = \mathbf{0}$.
+
+We go on with the same example as for the Rényi divergence. The
+`kldstudent` function computes the KLD:
+
+```{r}
+#| echo: true
+kld12 <- kldstudent(nu1, Sigma1, nu2, Sigma2)
+```
+
+The calculation of the partial derivative of the Lauricella
+$D$-hypergeometric function, needed to calculate the KLD between two
+MTDs (see @eq-klmtd) uses an iterative algorithm. The optional `eps`
+argument (default `1e-6`) allows to indicate the desired precision for
+the calculation of this partial derivative:
+
+```{r}
+#| echo: true
+#| eval: false
+kld12 <- kldstudent(Sigma1, Sigma2, eps = 1e-06)
+```
+
+The returned result is the KLD with two attributes `attr(,"epsilon")`
+(precision of the partial derivative, given by the `eps` argument) and
+`attr(,"k")` (number of iterations):
+
+```{r}
+#| echo: true
+kld12
+```
+
+## Execution time
+
+The R code which produces the results presented in this section
+were run under Windows, with a Intel Core Ultra 7 165H (1.40 GHz, 32 Go).
+
+### Among the wanted precision
+
+How does the execution time increase when the precision increases?
+
+We consider the distributions:
+$\mathbf{X}^1 \sim MTD(\mathbf{0}, \nu_1, \boldsymbol{\Sigma_1})$ and
+$\mathbf{X}^2 \sim MTD(\mathbf{0}, \nu_2, \boldsymbol{\Sigma_2})$
+
+with $\nu_1 = 2$ and $\nu_2 = 4$,
+$\boldsymbol{\Sigma_1} = \left(\begin{array}{ccc}
+1 & 0.6 & 0.2 \\
+0.6 & 1 & 0.3 \\
+0.2 & 0.3 & 1
+\end{array}\right)$ and
+$\boldsymbol{\Sigma_2} = \left(\begin{array}{ccc}
+1 & 0.3 & 0.1 \\
+0.3 & 1 & 0.4 \\
+0.1 & 0.4 & 1
+\end{array}\right)$
+
+```{r}
+#| label: extime1
+#| echo: false
+#| cache: true
+#| cache.path: "santagostini_multvardiv_cache/"
+#| fig-show: hide
+
+if (!file.exists("exetimes/renyi_2_1.rds")|!file.exists("exetimes/kl_2_1.rds"))
+  source("scripts/_append_2_1.R")
+```
+
+```{r}
+#| label: tbl-extime1
+#| tbl-cap: "Evolution of the normalized execution time among the wished precision of the divergence"
+#| echo: false
+
+# Load the execution times
+renyi_exetime <- readRDS("exetimes/renyi_2_1.rds")
+kl_exetime <- readRDS("exetimes/kl_2_1.rds")
+
+if (knitr::is_html_output()) {
+  precision <- paste0("10<sup>", log10(renyi_exetime$eps), "</sup>")
+} else {
+  precision <- paste0("$10^{", log10(renyi_exetime$eps), "}$")
+}
+
+# Table of the execution times
+
+library(kableExtra)
+tbl <- data.frame(precision, renyi_exetime[c(2, 4)], kl_exetime[c(2, 4)]) %>%
+  kbl(
+    col.names = c("Precision", "Number of iterations", "Execution time",
+                  "Number of iterations", "Execution time"),
+    digits = c(16, 0, 4, 0, 4), escape = FALSE
+  ) %>%
+  add_header_above(c(" " = 1, "Rényi divergence of order β=0.25" = 2,
+                     "Kullback-Leibler divergence" = 2), escape = FALSE)
+tbl
+
+```
+
+```{r}
+#| label: fig-extime1
+#| fig-cap: "Evolution of the execution time (in seconds) among the wished precision of the divergence"
+#| fig-subcap:
+#|    - "Rényi divergence of order $\\beta=0.25$"
+#|    - "Kullback-Leibler"
+#| fig-height: 3.5
+#| fig-width: 9
+#| layout-ncol: 1
+#| echo: false
+
+# plot(exetime~epsilon, data = renyi_exetime, type = "b", log = "x",
+#      pch = 16, xaxt = "n", xlab = "Precision", ylab = "Execution time (s)")
+# axis(1, at = epsilon, labels = parse(text = paste0("10^", log10(epsilon))))
+# plot(exetime~epsilon, data = kl_exetime, type = "b", log = "x",
+#      pch = 16, xaxt = "n", xlab = "Precision", ylab = "Execution time (s)")
+# axis(1, at = epsilon, labels = parse(text = paste0("10^", log10(epsilon))))
+# Load the execution times
+renyi_exetime <- readRDS("exetimes/renyi_2_1.rds")
+kl_exetime <- readRDS("exetimes/kl_2_1.rds")
+
+# Plot the execution times among the wished precision
+plot(exetime~eps, data = renyi_exetime, type = "b", log = "x",
+     pch = 16, xaxt = "n", xlab = "Precision", ylab = "Execution time")
+axis(1, at = renyi_exetime$eps, labels = parse(text = paste0("10^", log10(renyi_exetime$eps))))
+plot(exetime~eps, data = kl_exetime, type = "b", log = "x",
+     pch = 16, xaxt = "n", xlab = "Precision", ylab = "Execution time")
+axis(1, at = kl_exetime$eps, labels = parse(text = paste0("10^", log10(kl_exetime$eps))))
+
+```
+
+In @tbl-extime1, the times are normalized by taking as reference the
+execution time to reach the precision $10^{-6}$:
+`r renyi_exetime$exetime[7]` s. (Rényi) or `r kl_exetime$exetime[7]` s.
+(Kullback-Leibler).
+The R code which produce @tbl-extime1 and @fig-extime1 is given in appendix,
+see @sec-appendtime1.
+
+### Among the dimension of the distributions
+
+We consider the distributions:
+$X^1 \sim MTD(\mathbf{0}, \nu_1, \boldsymbol{\Sigma_1})$ and
+$X^2 \sim MTD(\mathbf{0}, \nu_2, \boldsymbol{\Sigma_2})$
+
+with $\nu_1 = 2$ and $\nu_2 = 4$,
+and we vary the dimension of the distributions, taking successive values of
+$\boldsymbol{\Sigma}_1$ and $\boldsymbol{\Sigma}_2$ :
+
+1.  $\boldsymbol{\Sigma}_1 = 0.2$, $\boldsymbol{\Sigma}_2 = 0.3$
+
+1.  $\boldsymbol{\Sigma}_1 = \left(\begin{array}{cc}
+      1 & 0.2 \\
+      0.2 & 1
+    \end{array}\right)$,
+    $\boldsymbol{\Sigma}_2 = \left(\begin{array}{cc}
+      1 & 0.3 \\
+      0.3 & 1
+    \end{array}\right)$
+
+1.  $\boldsymbol{\Sigma}_1 = \left(\begin{array}{ccc}
+      1 & 0.6 & 0.2 \\
+      0.6 & 1 & 0.3 \\
+      0.2 & 0.3 & 1
+    \end{array}\right)$,
+    $\boldsymbol{\Sigma}_2 = \left(\begin{array}{ccc}
+      1 & 0.3 & 0.1 \\
+      0.3 & 1 & 0.4 \\
+      0.1 & 0.4 & 1
+    \end{array}\right)$
+
+1.  $\boldsymbol{\Sigma}_1 = \left(\begin{array}{cccc}
+      1 & 0.6 & 0.2 & 0 \\
+      0.6 & 1 & 0.3 & 0 \\
+      0.2 & 0.3 & 1 & 0 \\
+      0 & 0 & 0 & 1
+    \end{array}\right)$,
+    $\boldsymbol{\Sigma}_2 = \left(\begin{array}{cccc}
+      1 & 0.3 & 0.1 & 0 \\
+      0.3 & 1 & 0.4 & 0 \\
+      0.1 & 0.4 & 1 & 0 \\
+      0 & 0 &  0 & 1
+    \end{array}\right)$
+    
+1.  $\boldsymbol{\Sigma}_1 = \left(\begin{array}{ccccc}
+      1 & 0.6 & 0.2 & 0 & 0 \\
+      0.6 & 1 & 0.3 & 0 & 0 \\
+      0.2 & 0.3 & 1 & 0 & 0 \\
+      0 & 0 & 0 & 1 & 0 \\
+      0 & 0 & 0 & 0 & 1
+    \end{array}\right)$,
+    $\boldsymbol{\Sigma}_2 = \left(\begin{array}{ccccc}
+      1 & 0.3 & 0.1 & 0 & 0 \\
+      0.3 & 1 & 0.4 & 0 & 0 \\
+      0.1 & 0.4 & 1 & 0 & 0 \\
+      0 & 0 &  0 & 1 & 0 \\
+      0 & 0 &  0 & 0 & 1
+    \end{array}\right)$
+    
+We fix the wanted precision: $\epsilon = 10^{-6}$.
+
+The R code which produce this table is given in appendix, see @sec-appendtime2.
+
+```{r}
+#| label: extime2
+#| echo: false
+#| cache: true
+#| cache.path: "santagostini_multvardiv_cache/"
+
+if (!file.exists("exetimes/renyi_2_2.rds")|!file.exists("exetimes/kl_2_2.rds"))
+  source("scripts/_append_2_2.R")
+```
+
+```{r}
+#| label: tbl-extime2
+#| tbl-cap: "Evolution of the normalized execution time among the wished precision of the divergence"
+#| echo: false
+
+# Load the execution times
+renyi_exetime <- readRDS("exetimes/renyi_2_2.rds")
+kl_exetime <- readRDS("exetimes/kl_2_2.rds")
+
+# Display the table of execution time among the dimension
+library(kableExtra)
+merge(renyi_exetime[c(1, 2, 4)], kl_exetime[c(1, 2, 4)], by = "dim") %>%
+  kbl(col.names = c("Dimension", "Number of iterations", "Execution time",
+                    "Number of iterations", "Execution time"),
+      digits = c(0, 0, 3, 0, 3)) %>%
+  add_header_above(c(" " = 1, "Rényi divergence of order β=0.25" = 2,
+                     "Kullback-Leibler divergence" = 2), escape = FALSE)
+
+```
+
+In @tbl-extime2, the times are normalized by taking as reference the
+execution time for dimension 3 <!-- 2 (bivariate) -->:
+{`r renyi_exetime$exetime[3]` s.} (Rényi) or {`r kl_exetime$exetime[3]` s.}
+(Kullback-Leibler).
+The R code which produce the table is given in appendix, see @sec-appenexetime.
+
+### Among the divergence between distributions
+
+We consider the distributions:
+$X^1 \sim MTD(\mathbf{0}, \nu_1, \boldsymbol{\Sigma_1})$ and
+$X^2 \sim MTD(\mathbf{0}, \nu_2, \boldsymbol{\Sigma_2})$
+
+with $\nu_1 = \nu_2 = 2$,
+$\boldsymbol{\Sigma}_2 = \left(\begin{array}{ccc}
+  1 & 0.3 & 0.1 \\
+  0.3 & 1 & 0.4 \\
+  0.1 & 0.4 & 1
+\end{array}\right)$, and
+$\boldsymbol{\Sigma}_1 = s \ \boldsymbol{\Sigma}_2$, $s \in ]0; 50]$.
+
+We fix the wanted precision: $\epsilon = 10^{-6}$.
+
+The results are given by @fig-extime3. The R code which produce this
+table is given in appendix, see @sec-appendtime3.
+
+```{r}
+#| label: extime3
+#| echo: false
+#| cache: true
+
+if (!file.exists("exetimes/renyikl_2_3.rds"))
+  source("scripts/_append_2_3.R")
+```
+
+```{r}
+#| label: fig-extime3
+#| fig-cap: "Evolution of the execution time among the divergence between the distributions"
+#| fig-subcap:
+#|    - "Rényi divergence of order $\\beta=0.25$"
+#|    - "Kullback-Leibler"
+#| fig-height: 4.7
+#| fig-width: 7
+#| layout-ncol: 1
+#| echo: false
+
+# Load the execution times
+exetime <- readRDS("exetimes/renyikl_2_3.rds")
+
+
+# Plot the execution times among the proportionality coefficients
+
+par(mfrow = c(2, 2), mar = c(4.1, 4.1, 3.1, 2.1))
+plot(renyi_iter~s, data = exetime, type = "b", pch = 16,
+     xlab = "s", ylab = "Number of iterations")
+plot(renyi_exetime~s, data = exetime, type = "b", pch = 16,
+     xlab = "s", ylab = "Execution time (s)")
+plot(renyi_div~s, data = exetime, type = "b", pch = 16,
+     xlab = "s", ylab = "Computed divergence")
+
+par(mfrow = c(2, 2), mar = c(4.1, 4.1, 3.1, 2.1))
+plot(kl_iter~s, data = exetime, type = "b", pch = 16,
+     xlab = "s", ylab = "Number of iterations")
+plot(kl_exetime~s, data = exetime, type = "b", pch = 16,
+     xlab = "s", ylab = "Execution time (s)")
+plot(kl_div~s, data = exetime, type = "b", pch = 16,
+     xlab = "s", ylab = "Computed divergence")
+
+```
+
+## Other probability distributions
+
+The [`multvardiv`](https://forge.inrae.fr/imhorphen/multvardiv) package
+provides the same tools for the MCD and the MGGD (@tbl-multvardiv).
+
+\newpage
+
+# Some particular cases -- test of the results
+
+## The `lauricella` function: some particular examples
+
+The computation of the RD between two MTDs, as given by [@eq-rdmtd] and
+of the KLD between two MGGDs (@eq-klggd),
+include the $D$-hypergeometric Lauricella function (@eq-lauric). For
+some particular cases, a simpler calculation allows an exact computing
+of this expression. We used them in the `tests` directory of the
+[`multvardiv`](https://CRAN.R-project.org/package=multvardiv) package,
+to test the `lauricella` function used by `diststudent` and `kldggd`
+([The multvardiv package]).
+
+### Case $p = 2$, $\beta_2=1$
+
+When $\mathbf{X}^1$ and $\mathbf{X}^2$ are bivariate ($p = 2$), the
+$D$-hypergeometric Lauricella function in @eq-klggd becomes: $$
+\displaystyle{F_D^{(1)}\bigg(-\beta_2, \frac{1}{2}; 1; 1-\frac{\lambda_1}{\lambda_2}\bigg) = {_2F_1}\left(-\beta_2, \frac{1}{2}; 1; 1 - \frac{\lambda_1}{\lambda_2}\right)}
+$$ {#eq-lauric2}
+
+where ${_2F_1}$ is the Gauss hypergeometric function: $$
+\displaystyle{{_2F_1}(a, b; c; x) = \sum_{m=0}^{\infty}{\frac{(a)_m (b)_m}{(c)_m} \frac{x^m}{m!}}}
+$$ {#eq-lauric2next}
+
+So, here: $$
+\displaystyle{{_2F_1}\bigg(-1, \frac{1}{2}; 1; 1-\frac{\lambda_1}{\lambda_2}\bigg) = \frac{1}{2} \left(1 + \frac{\lambda_1}{\lambda_2}\right)}
+$$ {#eq-lauric2end}
+
+We use this result to test the result returned by the `lauricella`
+function in this particular situation. Let us fix $p=2$, $\beta_2 = 1$,
+$\lambda_1 = 1$, $\lambda_2 = 2$:
+
+```{r}
+#| echo: true
+p <- 2
+beta2 <- 1
+lambda <- c(1, 2)
+```
+
+Let us compute $F_D^{(p-1)}$ using the `lauricella` function. It
+returns:
+
+```{r}
+#| echo: true
+lauricella2 <- lauricella(-beta2, 0.5, p/2, 1 - lambda[1]/lambda[2], eps = 1e-15)
+lauricella2
+```
+
+and the value of the expression @eq-lauric2end is:
+
+```{r}
+#| echo: true
+lauric2control <- 1/2*(1 + lambda[1]/lambda[2])
+lauric2control
+```
+
+which is equal to `lauricella2`:
+
+```{r}
+#| echo: true
+lauricella2 == lauric2control
+```
+
+### Case $p = 3$, $\beta_2=1$, $\lambda_1 = \lambda_2$
+
+When $p = 3$, if $\beta_1 = 1$ and $\lambda_1 = \lambda_2$: If we note:
+$\lambda = \lambda_1 = \lambda_2$, the $D$-hypergeometric Lauricella
+function in @eq-klggd becomes: $$
+\displaystyle{F_D^{(2)}\bigg(-1, \frac{1}{2}, \frac{1}{2}; \frac{3}{2}; 1-\frac{\lambda_1}{\lambda_3}, 1-\frac{\lambda_2}{\lambda_3}\bigg) = {_2F_1}\left(-1, 1; \frac{3}{2}; 1 - \frac{\lambda}{\lambda_3}\right) = \frac{1}{3} \left( 1 + \frac{2\lambda}{\lambda_3} \right)}
+$$ {#eq-lauric3}
+
+Let $p=3$, $\beta_2 = 1$, $\lambda_1 = \lambda_2 = 1$, $\lambda_3 = 2$:
+
+```{r}
+#| echo: true
+p <- 3
+beta2 <- 1
+lambda <- c(1, 1, 2)
+```
+
+The calculation of $F_D^{(p-1)}$ using the `lauricella` function gives:
+
+```{r}
+#| echo: true
+lauricella3 <- lauricella(-beta2, rep(0.5, p-1), p/2, 1 - lambda[1:2]/lambda[3],
+                          eps = 1e-15)
+lauricella3
+```
+
+and the value of the expression given by @eq-lauric3 is:
+
+```{r}
+#| echo: true
+lauric3control <-1/3*(1 + 2*lambda[1]/lambda[3])
+lauric3control
+```
+
+The results are equal. To be more precise, their difference is less than
+$10^{-15}$:
+
+```{r}
+#| echo: true
+as.numeric(lauricella3) - lauric3control
+```
+
+### Case $p = 4$, $\beta_2=1$, $\lambda_1 = \lambda_2 = \lambda_3$
+
+We note : $\lambda = \lambda_1 = \lambda_2 = \lambda_3$.
+
+In this case, the $D$-hypergeometric Lauricella function in @eq-klggd
+becomes: $$
+\begin{array}{ll}
+\displaystyle{F_D^{(3)}\bigg(-1, \frac{1}{2}, \frac{1}{2}, \frac{1}{2}; 2; 1-\frac{\lambda_1}{\lambda_4}, 1-\frac{\lambda_2}{\lambda_4}, 1-\frac{\lambda_3}{\lambda_4}\bigg)} & = \displaystyle{{_2F_1}\left(-1, 3/2; 2; 1 - \frac{\lambda}{\lambda_p}\right)} \\
+& = \displaystyle{\frac{1}{4} \left( 1 + \frac{3\lambda}{\lambda_p} \right)}
+\end{array}
+$$ {#eq-lauric4}
+
+Let $p=4$, $\beta_2 = 1$, $\lambda_1 = \lambda_2 = \lambda_3 = 1$,
+$\lambda_4 = 2$:
+
+```{r}
+#| echo: true
+p <- 4
+beta2 <- 1
+lambda <- c(1, 1, 1, 2)
+```
+
+The calculation of $F_D^{(p-1)}$ using the `lauricella` function gives:
+
+```{r}
+#| echo: true
+lauricella4 <- lauricella(-beta2, rep(0.5, p-1), p/2, 1 - lambda[1:3]/lambda[4],
+                          eps = 1e-15)
+lauricella4
+```
+
+and the value of the expression given by @eq-lauric4 is:
+
+```{r}
+#| echo: true
+lauric4control <-1/4*(1 + 3*lambda[1]/lambda[4])
+lauric4control
+```
+
+The results are equal:
+
+```{r}
+#| echo: true
+lauricella4 == lauric4control
+```
+
+## The `kldstudent` function: some particular examples
+
+Some particular cases allow a simpler calculation of the KLD between two
+MTDs. we use these particular cases, showed hereafter, for some tests of
+the `kldstudent` function (@sec-kldiv).
+
+### Case $p = 3$, $\lambda_1 = \lambda_2 = \lambda_3$
+
+When $p = 3$, if the eigenvalues of the matrix $\boldsymbol{\Sigma_1} \boldsymbol{\Sigma_2^{-1}}$
+are equal: $\lambda_1 = \lambda_2 = \lambda_3 = \lambda$, and
+$\frac{\nu_1}{\nu_2}\lambda < 1$, then the expression of the partial derivative
+is given by @eq-klmt2 and developed as follows
+
+Let: <!--$$
+f(\lambda) = \displaystyle{ \frac{\partial}{\partial{a}}{ \bigg\{ F_D^{(p)}\bigg( a, \frac{1}{2}, \frac{1}{2}, \frac{1}{2}; a + \frac{\nu_1+p}{2}; 1 - \frac{\nu_1}{\nu_2}\lambda_1, 1 - \frac{\nu_1}{\nu_2}\lambda_2, 1 - \frac{\nu_1}{\nu_2}\lambda_3 \bigg) \bigg\} } \bigg|_{a=0} }
+$$ {#eq-kldmtdcase3} -->
+
+$$
+\begin{array}{lll}
+f(\lambda) & = &\displaystyle{ \frac{\partial}{\partial{a}}{ \bigg\{ F_D^{(p)}\bigg( a, \frac{1}{2}, \frac{1}{2}, \frac{1}{2}; a + \frac{\nu_1+p}{2}; 1 - \frac{\nu_1}{\nu_2}\lambda_1, 1 - \frac{\nu_1}{\nu_2}\lambda_2, 1 - \frac{\nu_1}{\nu_2}\lambda_3 \bigg) \bigg\} } \bigg|_{a=0} } \\ 
+& = &   \displaystyle{ \frac{\partial}{\partial a}\left\lbrace
+_2 F_1 (a, \frac{3}{2},a+\frac{\nu_1+3}{2}, 1-\frac{\nu_1}{\nu_2}\lambda\right\rbrace\bigg|_{a=0} } \\
+&   = &   \displaystyle{ \sum\limits_{n=0}^\infty \frac{\partial}{\partial a}\left\lbrace \frac{(a)_n}{(a+\frac{\nu_1+3}{2})_n}\right\rbrace\bigg|_{a=0} \bigg(\frac{3}{2}\bigg)_n\frac{(1-\frac{\nu_1}{\nu_2}\lambda)^n}{n!} } \\
+&   = &   \displaystyle{ \sum\limits_{n=1}^\infty \frac{(1)_n}{(\frac{\nu_1+3}{2})_n} \frac{1}{n} \bigg(\frac{3}{2}\bigg)_n\frac{(1-\frac{\nu_1}{\nu_2}\lambda)^n}{n!} }
+\end{array}
+$$ {#eq-kldmtdcase3}
+
+The multiplication of the derivative of $f$ with respect to $\lambda$ by
+$(1 -\frac{\nu_1}{\nu_2}\lambda)$ is given as follows:
+
+$$
+\begin{array}{lll}
+(1-\frac{\nu_1}{\nu_2}\lambda)\frac{\partial}{\partial \lambda} f(\lambda) &    = &  \displaystyle{  -\frac{\nu_1}{\nu_2}\sum\limits_{n=1}^\infty \frac{(1)_n}{(\frac{\nu_1+3}{2})_n} \bigg(\frac{3}{2}\bigg)_n\frac{(1-\frac{\nu_1}{\nu_2}\lambda)^n}{n!}}\\
+&   = &   \displaystyle{-\frac{\nu_1}{\nu_2}}\left[ _2 F_1(1, \frac{3}{2}, \frac{\nu_1+3}{2}, 1-\frac{\nu_1}{\nu_2}\lambda) -1  \right]
+\end{array}
+$$
+
+In addition, if $\nu_1=1$ and knowing that
+
+$$_2 F_1(1, \frac{3}{2}, 2, 1-\frac{1}{\nu_2}\lambda) = \frac{2\nu_2}{\lambda+ \sqrt{\nu_2\lambda}}$$
+
+we can state that:
+
+$$\displaystyle{
+\frac{\partial}{\partial \lambda} f(\lambda) = - 2\frac{\nu_2}{(\lambda+ \sqrt{\nu_2\lambda})(\nu_2-\lambda)} +\frac{1}{\nu_2-\lambda}
+}$$
+
+Accordingly,
+
+$$\begin{array}{lll}
+f(\lambda)    & = &   \displaystyle{ -\ln \frac{(\nu_2-\lambda)(\nu_2+\sqrt{\nu_2\lambda})}{\sqrt{\nu_2\lambda}-\nu_2}+2\frac{\sqrt{\nu_2}}{\sqrt{\nu_2}+\sqrt{\lambda}} + K }   \\
+&   = &   \displaystyle{ -\ln \frac{\nu_2(1-\frac{\lambda}{\nu_2})(1+\sqrt{\frac{\lambda}{\nu_2}})}{\sqrt{\frac{\lambda}{\nu_2}}-1}+2\frac{\sqrt{\nu_2}}{\sqrt{\nu_2}+\sqrt{\lambda}} + K }    \\
+&   = &   \displaystyle{ -\ln - \nu_2 \left(1 + \sqrt{\frac{\lambda}{\nu_2}} \right)^2 + 2 \frac{\sqrt{\nu_2}}{\sqrt{\nu_2} + \sqrt{\lambda}} + K }
+\end{array}$$
+
+The constant $K$ can be determined by putting
+$f(\lambda=\frac{\nu_2}{\nu_1}) = 0$:
+
+$$
+-\ln\bigg[-\nu_2\left(1+\frac{1}{\sqrt{\nu_1}}\right)^2\bigg]+\frac{2}{1+\frac{1}{\sqrt{\nu_1}}} + K = 0
+$$
+
+Then
+
+$$
+K = \ln\bigg[-4\nu_2 \bigg]-1
+$$
+
+Accordingly,
+
+$$
+f(\lambda) = -2\ln \frac{(\nu_2+\sqrt{\nu_2\lambda})}{2\nu_2} + \frac{\sqrt{\nu_2}-\sqrt{\lambda}}{\sqrt{\nu_2}+\sqrt{\lambda}}
+$$ {#eq-kldmtdcase3exact}
+
+Let $\mathbf{X}^1$ and $\mathbf{X}^2$ be two random vectors of $\mathbb{R}^3$
+distributed according to $t$ distributions with parameters
+$(\nu_1, \boldsymbol{\mu}_1, \boldsymbol{\Sigma}_1)$ and
+$(\nu_2, \boldsymbol{\mu}_2, \boldsymbol{\Sigma}_2)$ such that
+$\boldsymbol{\mu}_1 = \boldsymbol{\mu}_2 = \mathbf{0}$ and $\nu_1$,
+$\boldsymbol{\Sigma}_1$, $\nu_2$ and $\boldsymbol{\Sigma}_2$ are given by:
+
+```{r}
+#| echo: true
+nu1 <- 1
+Sigma1 <- diag(0.5, nrow = 3)
+Sigma1
+nu2 <- 2
+Sigma2 <- diag(1, nrow = 3)
+Sigma2
+```
+
+Let us compute the KLD to $\mathbf{X}^1$ from $\mathbf{X}^2$, using
+`kldstudent`:
+
+```{r}
+#| echo: true
+kl3pc <- kldstudent(nu1, Sigma1, nu2, Sigma2, eps = .Machine$double.eps)
+```
+
+Given the eigenvalues of $\boldsymbol{\Sigma}_1 \boldsymbol{\Sigma}_2^{-1}$:
+
+```{r}
+#| echo: true
+lambda <- eigen(Sigma1 %*% solve(Sigma2), only.values = TRUE)$value
+lambda
+```
+
+The value of @eq-kldmtdcase3exact is:
+
+```{r}
+#| echo: true
+lambda <- unique(lambda)
+d <- -2*log((nu2 + sqrt(nu2*lambda))/(2*nu2)) +
+  (sqrt(nu2) - sqrt(lambda))/(sqrt(nu2) + sqrt(lambda))
+```
+
+Then, from @eq-klmtd:
+```{r}
+#| echo: true
+kl3control <-log(
+  (gamma((nu1+3)/2)*gamma(nu2/2)*nu2^1.5)/(gamma((nu2+3)/2)*gamma(nu1/2) * nu1^1.5)
+  ) + (nu2 - nu1)/2 * ( digamma((nu1+3)/2) - digamma(nu1/2) ) -
+  0.5*3*(log(lambda)) - (nu2 + 3)/2 * d
+kl3control
+```
+
+Which is equal (to the precision `.Machine$double.eps`) to `kl3pc`:
+
+```{r}
+as.numeric(kl3pc) - kl3control
+```
+
+### Case $p = 4$, $\lambda_1 = \lambda_2 = \lambda_3 = \lambda_4$
+
+Similarly, when $p = 4$, if the eigenvalues of the matrix
+$\boldsymbol{\Sigma}_1 \boldsymbol{\Sigma}_2^{-1}$ are equal:
+$\lambda_1 = \lambda_2 = \lambda_3 = \lambda_4 = \lambda$, if
+$\frac{\nu_1}{\nu_2}\lambda < 1$, the expression of the partial derivative
+is given by @eq-klmt2 and developed as follows
+
+```{=html}
+<!--Let: $$
+f(\lambda) = \displaystyle{ \frac{\partial}{\partial{a}}{ \bigg\{ F_D^{(p)}\bigg( a, \frac{1}{2}, \frac{1}{2}, \frac{1}{2}, \frac{1}{2}; a + \frac{\nu_1+p}{2}; 1 - \frac{\nu_1}{\nu_2}\lambda_1, 1 - \frac{\nu_1}{\nu_2}\lambda_2, 1 - \frac{\nu_1}{\nu_2}\lambda_3, 1 - \frac{\nu_1}{\nu_2}\lambda_4 \bigg) \bigg\} } \bigg|_{a=0} }
+$$ {#eq-kldmtdcase4}-->
+```
+
+$$\begin{array}{lll}
+f(\lambda) &= &\displaystyle{ \frac{\partial}{\partial{a}}{ \bigg\{ F_D^{(p)}\bigg( a, \frac{1}{2}, \frac{1}{2}, \frac{1}{2}, \frac{1}{2}; a + \frac{\nu_1+p}{2}; 1 - \frac{\nu_1}{\nu_2}\lambda_1, 1 - \frac{\nu_1}{\nu_2}\lambda_2, 1 - \frac{\nu_1}{\nu_2}\lambda_3, 1 - \frac{\nu_1}{\nu_2}\lambda_4 \bigg) \bigg\} } \bigg|_{a=0} }\\
+& =   & \displaystyle{ \frac{\partial}{\partial a}\left\lbrace F_D^{(4)}\left(a, \frac{1}{2}, \frac{1}{2},\frac{1}{2},\frac{1}{2};a+\frac{\nu_1+4}{2}; 1-\frac{\nu_1}{\nu_2}\lambda,1-\frac{\nu_1}{\nu_2}\lambda,1-\frac{\nu_1}{\nu_2}, 1-\frac{\nu_1}{\nu_2}\lambda\right) \right\rbrace\bigg|_{a=0} }  \\
+&   = &   \displaystyle{ \frac{\partial}{\partial a}\left\lbrace
+_2 F_1 (a, 2,a+\frac{\nu_1+4}{2}, 1-\frac{\nu_1}{\nu_2}\lambda\right\rbrace\bigg|_{a=0} }    \\
+&   = &   \displaystyle{ \sum\limits_{n=0}^\infty \frac{\partial}{\partial a}\left\lbrace \frac{(a)_n}{(a+\frac{\nu_1+4}{2})_n}\right\rbrace\bigg|_{a=0} (2)_n\frac{(1-\frac{\nu_1}{\nu_2}\lambda)^n}{n!} } \\
+&   = &   \displaystyle{ \sum\limits_{n=1}^\infty \frac{(1)_n}{(\frac{\nu_1+4}{2})_n} \frac{1}{n} (2)_n\frac{\left(1-\frac{\nu_1}{\nu_2}\lambda\right)^n}{n!} }
+\end{array}$$ {#eq-kldmtdcase4}
+
+The multiplication of the derivative of $f$ with respect to $\lambda$ by
+$(1 -\frac{\nu_1}{\nu_2}\lambda)$ is given as follows:
+
+$$\begin{array}{lll}
+\displaystyle{ (1-\frac{\nu_1}{\nu_2}\lambda)\frac{\partial}{\partial \lambda} f(\lambda) } &   = &   \displaystyle{ -\frac{\nu_1}{\nu_2}\sum\limits_{n=1}^\infty \frac{(1)_n}{(\frac{\nu_1+4}{2})_n} (2)_n\frac{(1-\frac{\nu_1}{\nu_2}\lambda)^n}{n!} }    \\
+&   = &   \displaystyle{ -\frac{\nu_1}{\nu_2}\left[ _2 F_1(1, 2, \frac{\nu_1+4}{2}, 1-\frac{\nu_1}{\nu_2}\lambda) -1  \right] }
+\end{array}
+$$
+
+In addition, if $\nu_1=2$ and knowing that:
+
+$$
+\displaystyle{ _2 F_1(1, 2, 3, 1-\frac{2}{\nu_2}\lambda) = -\frac{2\nu_2(\nu_2-2\lambda+\nu_2\ln(\frac{2\lambda}{\nu_2}))}{(\nu_2-2\lambda)^2} }
+$$
+
+we can state that:
+
+$$\begin{array}{lll}
+\displaystyle{ \frac{\partial}{\partial \lambda} f(\lambda) } &    = &   \displaystyle{ -\frac{2}{\nu_2}\left[ -\frac{2\nu_2(\nu_2-2\lambda+\nu_2\ln(\frac{2\lambda}{\nu_2}))}{(\nu_2-2\lambda)^2(1-\frac{2}{\nu_2}\lambda)} -\frac{1}{1-\frac{2}{\nu_2}\lambda}  \right] }   \\
+&   = &   \displaystyle{ \frac{4\nu_2(\nu_2-2\lambda+ \nu_2\ln(\frac{2\lambda}{\nu_2}))} {(\nu_2-2\lambda)^3} + \frac{2}{\nu_2-2\lambda} }
+\end{array}$$
+
+Accordingly,
+
+$$
+\displaystyle{ f(\lambda) = \frac{\nu_2}{\nu_2-2\lambda}-\ln(\lambda)+\frac{\nu_2^2\ln(\frac{2\lambda}{\nu_2})}{(\nu_2-2\lambda)^2} + K }
+$$
+
+The constant $K$, can be determined by using Taylor series expansions of
+$f$:
+
+$$
+f(\lambda) = K -\frac{1}{2} - \ln(\frac{\nu_2}{2}) + \frac{4(\frac{\nu_2}{2} - \lambda)}{3\nu_2} + \frac{(\frac{\nu_2}{2} - \lambda)^2}{\nu_2^2} + \dots
+$$
+
+and then putting $f(\lambda = \frac{\nu_2}{2}) = 0$,
+
+$$
+K = \frac{1}{2}+\ln(\frac{\nu_2}{2})
+$$
+
+As a consequence:
+
+$$
+f(\lambda) = \frac{\nu_2}{\nu_2-2\lambda}-\ln(\frac{2\lambda}{\nu_2})+\frac{\nu_2^2\ln(\frac{2\lambda}{\nu_2})}{(\nu_2-2\lambda)^2} +\frac{1}{2}
+$$ {#eq-kldmtdcase4exact}
+
+Let $\mathbf{X}^1$ and $\mathbf{X}^2$ be two random vectors of $\mathbb{R}^4$
+distributed according to $t$ distributions with parameters
+$(\nu_1, \boldsymbol{\mu}_1, \boldsymbol{\Sigma}_1)$ and
+$(\nu_2, \boldsymbol{\mu}_2, \boldsymbol{\Sigma}_2)$ such that
+$\boldsymbol{\mu}_1 = \boldsymbol{\mu}_2 = \mathbf{0}$ and $\nu_1$,
+$\boldsymbol{\Sigma}_1$, $\nu_2$ and $\boldsymbol{\Sigma}_2$ are given by:
+
+```{r}
+#| echo: true
+nu1 <- 2
+Sigma1 <- diag(0.5, nrow = 4)
+Sigma1
+nu2 <- 3
+Sigma2 <- diag(1, nrow = 4)
+Sigma2
+```
+
+Let us compute the KLD to $\mathbf{X}^1$ from $\mathbf{X}^2$, using
+`kldstudent`:
+
+```{r}
+#| cache: true
+#| echo: true
+kl4pc <- kldstudent(nu1, Sigma1, nu2, Sigma2, eps = .Machine$double.eps)
+```
+
+Given the eigenvalues of $\boldsymbol{\Sigma}_1 \boldsymbol{\Sigma}_2^{-1}$:
+
+```{r}
+#| echo: true
+lambda <- eigen(Sigma1 %*% solve(Sigma2), only.values = TRUE)$value
+lambda
+```
+
+The value of @eq-kldmtdcase4exact is:
+
+```{r}
+#| echo: true
+lambda <- unique(lambda)
+d <-  nu2/(nu2 - 2*lambda) - log(2*lambda/nu2) +
+  nu2^2*log(2*lambda/nu2)/((nu2 - 2*lambda)^2) + 0.5
+```
+
+Then, from @eq-klmtd:
+```{r}
+#| echo: true
+kl4control <-log(
+  (gamma((nu1+4)/2)*gamma(nu2/2)*nu2^2)/(gamma((nu2+4)/2)*gamma(nu1/2) * nu1^2)
+  ) + (nu2 - nu1)/2 * ( digamma((nu1+4)/2) - digamma(nu1/2) ) -
+  0.5*4*(log(lambda)) - (nu2 + 4)/2 * d
+kl4control
+```
+
+Which is equal (to the precision $10^{-15}$) to `kl4pc`:
+
+```{r}
+#| echo: true
+as.numeric(kl4pc) - kl4control
+```
+
+# Conclusion and perspectives
+
+The [`multvardiv`](https://CRAN.R-project.org/package=multvardiv)
+package provides tools for multivariate generalized Gaussian
+distributions, multivariate $t$-distributions and multivariate Cauchy
+distributions, the latter being a particular case of the $t$
+distribution. Some of them are the Kullback-Leibler divergence and, for
+the MTD and MCD, the Rényi, Bhattacharyya and Hellinger divergences,
+based on analytical expressions given by @bouhlel19, @bouhlel22 and
+@bouhlel23. Using some particular cases which allow an exact calculation
+of the Lauricella function, we could test the `lauricella` function used
+by the `kldggd` and `diststudent` functions of the
+[`multvardiv`](https://CRAN.R-project.org/package=multvardiv) package.
+Similarly, we used some particular cases for the calculation of the KLD
+between MTDs <!-- or between MCDs --> to test the `kldtstudent` and `kldcauchy`
+function<!-- of the [`mcauchyd`](https://CRAN.R-project.org/package=mcauchyd) package -->.
+
+In a future version of the
+[`multvardiv`](https://CRAN.R-project.org/package=multvardiv) package,
+we will add other methods for the parameter estimation of a MGGD. In
+further works, we will extend these tools to complex multivariate
+distributions, and more generally to elliptical distributions.
+
+<!-- # Conclusion and perspectives -->
+
+<!-- # References {.unnumbered} -->
+
+<!-- ::: {#refs} -->
+
+<!-- ::: -->
+
+# Appendix {#sec-appendix}
+
+## Study of the divergence
+
+### Multivariate $t$ distribution {#sec-append_divMTD}
+
+#### Among the degrees of freedom {.unnumbered .unlisted}
+
+```{r}
+#| label: code-divnu1
+#| eval: false
+#| echo: true
+#| code-fold: show
+#| warning: true
+
+nu <- 2
+
+# Values of nu1
+nu1 <- c(seq(0.1, nu, by = 0.1), seq(nu+1, 20, by = 1))
+
+# Fixed values of the other parameters
+nu2 <- nu
+Sigma <- matrix(c(1, 0.3, 0.3, 1), nrow = 2)
+
+# Values of lambda*nu1/nu2
+lambdanu <- nu1/nu2
+
+# Rényi divergence, beta = 0.25
+b <- 0.25
+renyi_0_25 <- sapply(nu1, function(nu) {
+  diststudent(nu1 = nu, Sigma1 = Sigma,
+              nu2 = nu2, Sigma2 = Sigma,
+              dist = "renyi", bet = b)
+})
+
+# Rényi divergence, beta = 1.5
+b <- 1.5
+renyi_1_5 <- sapply(nu1, function(nu) {
+  diststudent(nu1 = nu, Sigma1 = Sigma,
+              nu2 = nu2, Sigma2 = Sigma,
+              dist = "renyi", bet = b)
+})
+
+# Battacharyya divergence
+bhattacharyya <- sapply(nu1, function(nu) {
+  diststudent(nu1 = nu, Sigma1 = Sigma,
+              nu2 = nu2, Sigma2 = Sigma,
+              dist = "bhattacharyya")
+})
+
+# Hellinger divergence
+hellinger <- sapply(nu1, function(nu) {
+  diststudent(nu1 = nu, Sigma1 = Sigma,
+              nu2 = nu2, Sigma2 = Sigma,
+              dist = "hellinger")
+})
+
+# Kullback-Leibler divergence
+kullback_leibler <- sapply(nu1, function(nu) {
+  kld(Sigma1 = Sigma, Sigma2 = Sigma,
+      nu1 = nu, nu2 = nu2,
+      distribution = "mtd")
+})
+
+# Table of the results
+divnu <- data.frame(
+  nu1 = nu1,
+  lambdanu = lambdanu,
+  renyi_0_25 = renyi_0_25,
+  renyi_1_5 = renyi_1_5,
+  bhattacharyya = bhattacharyya,
+  hellinger = hellinger,
+  kullback_leibler = kullback_leibler
+)
+
+par(mar = c(4.1, 4.1, 3.1, 2.1))
+
+plot(renyi_0_25~nu1, data = divnu, type = "b", pch = 16,
+     xlab = substitute(nu[1]), ylab = "Divergence", ylim = c(0, 0.6))
+axis(side = 1, at = nu2, cex = 1.2)
+
+plot(renyi_1_5~nu1, data = divnu, type = "b", pch = 16,
+     xlab = substitute(nu[1]), ylab = "Divergence", ylim = c(0, 0.6))
+axis(side = 1, at = nu2, cex = 1.2)
+
+plot(bhattacharyya~nu1, data = divnu, type = "b", pch = 16,
+     xlab = substitute(nu[1]), ylab = "Divergence", ylim = c(0, 0.6))
+axis(side = 1, at = nu2, cex = 1.2)
+
+plot(hellinger~nu1, data = divnu, type = "b", pch = 16,
+     xlab = substitute(nu[1]), ylab = "Divergence", ylim = c(0, 0.6))
+axis(side = 1, at = nu2, cex = 1.2)
+
+plot(kullback_leibler~nu1, data = divnu, type = "b", pch = 16,
+     xlab = substitute(nu[1]), ylab = "Divergence", ylim = c(0, 0.6))
+axis(side = 1, at = nu2, cex = 1.2)
+
+```
+
+#### Among the scale matrix: first situation {.unnumbered .unlisted}
+
+```{r}
+#| label: code-divsigma11
+#| eval: false
+#| echo: true
+#| code-fold: show
+#| warning: true
+
+s <- 3
+
+# Values of Sigma1[1, 1]
+s1 <- c(seq(0.1, s, by = 0.05), seq(s+1, 50, by = 1))
+
+# Fixed values of the other parameters
+nu <- 1
+Sigma1 <- Sigma2 <- matrix(c(s, 0.3, 0.3, 1), nrow = 2)
+Sigma1[1, 1] <- NA
+
+# Values of lambda*nu1/nu2
+invS2 <- solve(Sigma2)
+lambdanu <- sapply(s1, function(s) {
+  Sigma1[1, 1] <- s
+  sort(eigen(Sigma1 %*% invS2, only.values = TRUE)$values, decreasing = FALSE)
+})
+ln1 <- lambdanu[1, ]
+lnp <- lambdanu[2, ]
+
+# Renyi divergence, beta = 0.25
+b <- 0.25
+renyi_0_25 <- sapply(s1, function(s1) {
+  Sigma1[1, 1] <- s1
+  diststudent(nu1 = nu, Sigma1 = Sigma1, nu2 = nu, Sigma2 = Sigma2,
+              dist = "renyi", bet = b)
+})
+
+# Renyi divergence, beta = 1.5
+b <- 1.5
+renyi_1_5 <- sapply(s1, function(s1) {
+  Sigma1[1, 1] <- s1
+  diststudent(nu1 = nu, Sigma1 = Sigma1, nu2 = nu, Sigma2 = Sigma2,
+              dist = "renyi", bet = b)
+})
+
+# Battacharyya divergence
+bhattacharyya <- sapply(s1, function(s1) {
+  Sigma1[1, 1] <- s1
+  diststudent(nu1 = nu, Sigma1 = Sigma1, nu2 = nu, Sigma2 = Sigma2,
+              dist = "bhattacharyya")
+})
+
+# Hellinger divergence
+hellinger <- sapply(s1, function(s1) {
+  Sigma1[1, 1] <- s1
+  diststudent(nu1 = nu, Sigma1 = Sigma1, nu2 = nu, Sigma2 = Sigma2,
+              dist = "hellinger")
+})
+
+# Kullback-Leibler divergence
+kullback_leibler <- sapply(s1, function(s1) {
+  Sigma1[1, 1] <- s1
+  kld(Sigma1 = Sigma1, Sigma2 = Sigma2, nu1 = nu, nu2 = nu,
+      distribution = "mtd")
+})
+
+# Table of the results
+divS1 <- data.frame(
+  s1 = s1, ln1 = ln1, lnp = lnp,
+  renyi_0_25 = renyi_0_25,
+  renyi_1_5 = renyi_1_5,
+  bhattacharyya = bhattacharyya,
+  hellinger = hellinger,
+  kullback_leibler = kullback_leibler
+)
+
+par(mar = c(4.1, 4.1, 3.1, 2.1))
+
+plot(renyi_0_25~s1, data = divS1, type = "b", pch = 16,
+     xlab = substitute(Sigma[1][1]), ylab = "Divergence")
+axis(side = 1, at = Sigma2[1, 1], cex.axis = 1.2)
+
+plot(renyi_1_5~s1, data = divS1, type = "b", pch = 16,
+     xlab = substitute(Sigma[1][1]), ylab = "Divergence")
+axis(side = 1, at = Sigma2[1, 1], cex.axis = 1.2)
+
+plot(bhattacharyya~s1, data = divS1, type = "b", pch = 16,
+     xlab = substitute(Sigma[1][1]), ylab = "Divergence")
+axis(side = 1, at = Sigma2[1, 1], cex.axis = 1.2)
+
+plot(hellinger~s1, data = divS1, type = "b", pch = 16,
+     xlab = substitute(Sigma[1][1]), ylab = "Divergence")
+axis(side = 1, at = Sigma2[1, 1], cex.axis = 1.2)
+
+plot(kullback_leibler~s1, data = divS1, type = "b", pch = 16,
+     xlab = substitute(Sigma[1][1]), ylab = "Divergence")
+axis(side = 1, at = Sigma2[1, 1], cex.axis = 1.2)
+
+```
+
+#### Among the scale matrix: second situation {.unnumbered .unlisted}
+
+```{r}
+#| label: code-divsigma12
+#| eval: false
+#| echo: true
+#| code-fold: show
+#| warning: true
+
+s <- 3
+
+# Values of Sigma1[1, 1]
+s1 <- c(seq(0.1, s, by = 0.05), seq(s+1, 50, by = 1))
+
+# Fixed values of the other parameters
+nu <- 1
+Sigma1 <- Sigma2 <- matrix(c(s, 0.3, 0.3, 1), nrow = 2)
+Sigma1[1, 1] <- NA
+
+# Values of lambda*nu1/nu2
+invS2 <- solve(Sigma2)
+lambdanu <- sapply(s1, function(s) {
+  Sigma1[1, 1] <- s
+  sort(eigen(Sigma1 %*% invS2, only.values = TRUE)$values, decreasing = FALSE)
+})
+ln1 <- lambdanu[1, ]
+lnp <- lambdanu[2, ]
+
+# Renyi divergence, beta = 0.25
+b <- 0.25
+renyi_0_25 <- sapply(s1, function(s1) {
+  Sigma1[1, 1] <- s1
+  diststudent(nu1 = nu, Sigma1 = Sigma1, nu2 = nu, Sigma2 = Sigma2,
+              dist = "renyi", bet = b)
+})
+
+# Renyi divergence, beta = 1.5
+b <- 1.5
+renyi_1_5 <- sapply(s1, function(s1) {
+  Sigma1[1, 1] <- s1
+  diststudent(nu1 = nu, Sigma1 = Sigma1, nu2 = nu, Sigma2 = Sigma2,
+              dist = "renyi", bet = b)
+})
+
+# Battacharyya divergence
+bhattacharyya <- sapply(s1, function(s1) {
+  Sigma1[1, 1] <- s1
+  diststudent(nu1 = nu, Sigma1 = Sigma1, nu2 = nu, Sigma2 = Sigma2,
+              dist = "bhattacharyya")
+})
+
+# Hellinger divergence
+hellinger <- sapply(s1, function(s1) {
+  Sigma1[1, 1] <- s1
+  diststudent(nu1 = nu, Sigma1 = Sigma1, nu2 = nu, Sigma2 = Sigma2,
+              dist = "hellinger")
+})
+
+# Kullback-Leibler divergence
+kullback_leibler <- sapply(s1, function(s1) {
+  Sigma1[1, 1] <- s1
+  kld(Sigma1 = Sigma1, Sigma2 = Sigma2, nu1 = nu, nu2 = nu,
+      distribution = "mtd")
+})
+
+# Table of the results
+divS1 <- data.frame(
+  s1 = s1, ln1 = ln1, lnp = lnp,
+  renyi_0_25 = renyi_0_25,
+  renyi_1_5 = renyi_1_5,
+  bhattacharyya = bhattacharyya,
+  hellinger = hellinger,
+  kullback_leibler = kullback_leibler
+)
+
+par(mar = c(4.1, 4.1, 3.1, 2.1))
+
+plot(renyi_0_25~s1, data = divS1, type = "b", pch = 16,
+     xlab = substitute(Sigma[1][1]), ylab = "Divergence")
+axis(side = 1, at = Sigma2[1, 1], cex.axis = 1.2)
+
+plot(renyi_1_5~s1, data = divS1, type = "b", pch = 16,
+     xlab = substitute(Sigma[1][1]), ylab = "Divergence")
+axis(side = 1, at = Sigma2[1, 1], cex.axis = 1.2)
+
+plot(bhattacharyya~s1, data = divS1, type = "b", pch = 16,
+     xlab = substitute(Sigma[1][1]), ylab = "Divergence")
+axis(side = 1, at = Sigma2[1, 1], cex.axis = 1.2)
+
+plot(hellinger~s1, data = divS1, type = "b", pch = 16,
+     xlab = substitute(Sigma[1][1]), ylab = "Divergence")
+axis(side = 1, at = Sigma2[1, 1], cex.axis = 1.2)
+
+plot(kullback_leibler~s1, data = divS1, type = "b", pch = 16,
+     xlab = substitute(Sigma[1][1]), ylab = "Divergence")
+axis(side = 1, at = Sigma2[1, 1], cex.axis = 1.2)
+
+```
+
+### Multivariate Cauchy distribution {#sec-append_divMCD}
+
+#### Among the scale matrix: first situation {.unnumbered .unlisted}
+
+```{r}
+#| label: code-divsigma11cauchy
+#| eval: false
+#| echo: true
+#| code-fold: show
+#| warning: true
+
+s <- 3
+
+# Values of Sigma1[1, 1]
+s1 <- c(seq(0.1, s, by = 0.05), seq(s+1, 70, by = 1))
+
+# Values of the other parameters
+nu <- 1
+Sigma1 <- Sigma2 <- matrix(c(s, 0.3, 0.3, 1), nrow = 2)
+Sigma1[1, 1] <- NA
+
+# Renyi divergence, beta = 0.25
+b <- 0.25
+renyi_0_25 <- sapply(s1, function(s1) {
+  Sigma1[1, 1] <- s1
+  diststudent(nu1 = 1, Sigma1 = Sigma1, nu2 = 1, Sigma2 = Sigma2,
+              dist = "renyi", bet = b)
+})
+
+# Renyi divergence, beta = 1.5
+b <- 1.5
+renyi_1_5 <- sapply(s1, function(s1) {
+  Sigma1[1, 1] <- s1
+  diststudent(nu1 = 1, Sigma1 = Sigma1, nu2 = 1, Sigma2 = Sigma2,
+              dist = "renyi", bet = b)
+})
+
+# Battacharyya divergence
+bhattacharyya <- sapply(s1, function(s1) {
+  Sigma1[1, 1] <- s1
+  diststudent(nu1 = 1, Sigma1 = Sigma1, nu2 = 1, Sigma2 = Sigma2,
+              dist = "bhattacharyya")
+})
+
+# Hellinger divergence
+hellinger <- sapply(s1, function(s1) {
+  Sigma1[1, 1] <- s1
+  diststudent(nu1 = 1, Sigma1 = Sigma1, nu2 = 1, Sigma2 = Sigma2,
+              dist = "hellinger")
+})
+
+# Kullback-Leibler divergence
+kullback_leibler <- sapply(s1, function(s1) {
+  Sigma1[1, 1] <- s1
+  kld(Sigma1 = Sigma1, Sigma2 = Sigma2, distribution = "mcd")
+})
+
+# Table of the results
+divS1 <- data.frame(
+  s1 = s1,
+  renyi_0_25 = renyi_0_25,
+  renyi_1_5 = renyi_1_5,
+  bhattacharyya = bhattacharyya,
+  hellinger = hellinger,
+  kullback_leibler = kullback_leibler
+)
+
+par(mar = c(4.1, 4.1, 3.1, 2.1))
+
+plot(renyi_0_25~s1, data = divS1, type = "b", pch = 16,
+     xlab = substitute(Sigma[1][1]), ylab = "Divergence")
+axis(side = 1, at = Sigma2[1, 1], cex.axis = 1.2)
+
+plot(renyi_1_5~s1, data = divS1, type = "b", pch = 16,
+     xlab = substitute(Sigma[1][1]), ylab = "Divergence")
+axis(side = 1, at = Sigma2[1, 1], cex.axis = 1.2)
+
+plot(bhattacharyya~s1, data = divS1, type = "b", pch = 16,
+     xlab = substitute(Sigma[1][1]), ylab = "Divergence")
+axis(side = 1, at = Sigma2[1, 1], cex.axis = 1.2)
+
+plot(hellinger~s1, data = divS1, type = "b", pch = 16,
+     xlab = substitute(Sigma[1][1]), ylab = "Divergence")
+axis(side = 1, at = Sigma2[1, 1], cex.axis = 1.2)
+
+plot(kullback_leibler~s1, data = divS1, type = "b", pch = 16,
+     xlab = substitute(Sigma[1][1]), ylab = "Divergence")
+axis(side = 1, at = Sigma2[1, 1], cex.axis = 1.2)
+
+```
+
+#### Among the scale matrix: second situation {.unnumbered .unlisted}
+
+```{r}
+#| label: code-divsigma12cauchy
+#| eval: false
+#| echo: true
+#| code-fold: show
+#| warning: true
+
+# The parameters
+Sigma <- matrix(c(1, 0.3, 0.3, 1), nrow = 2)
+
+# Values of the proportionality coefficient
+s <- c(seq(0.05, 1, by = 0.05), seq(2, 70, by = 2))
+
+# Renyi divergence, beta = 0.25
+b <- 0.25
+renyi_0_25 <- sapply(s, function(s) {
+  diststudent(nu1 = 1, Sigma1 = s*Sigma, nu2 = 1, Sigma2 = Sigma,
+              dist = "renyi", bet = b)
+})
+
+# Renyi divergence, beta = 1.5
+b <- 1.5
+renyi_1_5 <- sapply(s, function(s) {
+  diststudent(nu1 = 1, Sigma1 = s*Sigma, nu2 = 1, Sigma2 = Sigma,
+              dist = "renyi", bet = b)
+})
+
+# Battacharyya divergence
+bhattacharyya <- sapply(s, function(s) {
+  diststudent(nu1 = 1, Sigma1 = s*Sigma, nu2 = 1, Sigma2 = Sigma,
+              dist = "bhattacharyya")
+})
+
+# Hellinger divergence
+hellinger <- sapply(s, function(s) {
+  diststudent(nu1 = 1, Sigma1 = s*Sigma, nu2 = 1, Sigma2 = Sigma,
+              dist = "hellinger")
+})
+
+# Kullback-Leibler divergence
+kullback_leibler <- sapply(s, function(s) {
+  kld(Sigma1 = s*Sigma, Sigma2 = Sigma, distribution = "mcd")
+})
+
+# Table of the results
+divSigma <- data.frame(
+  facteur = s,
+  renyi_0_25 = renyi_0_25,
+  renyi_1_5 = renyi_1_5,
+  bhattacharyya = bhattacharyya,
+  hellinger = hellinger,
+  kullback_leibler = kullback_leibler
+)
+
+par(mar = c(4.1, 4.1, 3.1, 2.1))
+
+plot(renyi_0_25~facteur, data = divSigma, type = "b", pch = 16,
+     xlab = "s", ylab = "Divergence")
+axis(side = 1, at = 1, labels = 1, cex.axis = 1.2)
+
+plot(renyi_1_5~facteur, data = divSigma, type = "b", pch = 16,
+     xlab = "s", ylab = "Divergence")
+axis(side = 1, at = 1, labels = 1, cex.axis = 1.2)
+
+plot(bhattacharyya~facteur, data = divSigma, type = "b", pch = 16,
+     xlab = "s", ylab = "Divergence")
+axis(side = 1, at = 1, labels = 1, cex.axis = 1.2)
+
+plot(hellinger~facteur, data = divSigma, type = "b", pch = 16,
+     xlab = "s", ylab = "Divergence")
+axis(side = 1, at = 1, labels = 1, cex.axis = 1.2)
+
+plot(kullback_leibler~facteur, data = divSigma, type = "b", pch = 16,
+     xlab = "s", ylab = "Divergence")
+axis(side = 1, at = 1, labels = 1, cex.axis = 1.2)
+
+```
+
+### Multivariate general Gaussian distribution {#sec-append_divMGGD}
+
+#### Among the scale matrix: first situation {.unnumbered .unlisted}
+
+```{r}
+#| label: code-divsigma11ggd
+#| eval: false
+#| echo: true
+#| code-fold: show
+#| warning: true
+
+s <- 10
+
+# Values of Sigma1[1, 1]
+s1 <- c(seq(0.1, s, by = 0.05), seq(s+1, 100, by = 1))
+
+# Fixed values of the other parameters
+Sigma1 <- Sigma2 <- matrix(c(s, 0.3, 0.3, 1), nrow = 2)
+Sigma1[1, 1] <- NA
+bet <- 0.74
+
+# Kullback-Leibler divergence
+kullback_leibler <- sapply(s1, function(s1) {
+  Sigma1[1, 1] <- s1
+  kld(Sigma1 = Sigma1, Sigma2 = Sigma2, beta1 = bet, beta2 = bet,
+      distribution = "mggd")
+})
+
+# Table of the results
+divS1 <- data.frame(
+  s1 = s1,
+  kullback_leibler = kullback_leibler
+)
+
+par(mar = c(4.1, 4.1, 3.1, 2.1))
+
+plot(kullback_leibler~s1, data = divS1, type = "b", pch = 16,
+     xlab = substitute(Sigma[1][1]), ylab = "Divergence")
+axis(side = 1, at = Sigma2[1, 1], cex.axis = 1.2)
+
+```
+
+#### Among the scale matrix: second situation {.unnumbered .unlisted}
+
+```{r}
+#| label: code-divsigma12ggd
+#| eval: false
+#| echo: true
+#| code-fold: show
+#| warning: true
+
+# The parameters
+Sigma <- matrix(c(1, 0.3, 0.3, 1), nrow = 2)
+bet <- 0.74
+
+# Values of the proportionality coefficient
+s <- c(seq(0.01, 1, by = 0.05), seq(2, 25, by = 2))
+
+# Kullback-Leibler divergence
+kullback_leibler <- sapply(s, function(s) {
+  kld(Sigma1 = s*Sigma, Sigma2 = Sigma, beta1 = bet, beta2 = bet,
+      distribution = "mggd")
+})
+
+# Table of the results
+divSigma <- data.frame(
+  facteur = s,
+  kullback_leibler = kullback_leibler
+)
+
+par(mar = c(4.1, 4.1, 3.1, 2.1))
+
+plot(kullback_leibler~facteur, data = divSigma, type = "b", pch = 16,
+     xlab = "s", ylab = "Divergence")
+axis(side = 1, at = 1, labels = 1, cex.axis = 1.2)
+
+```
+
+#### Among the shapes of the distributions {.unnumbered .unlisted}
+
+```{r}
+#| label: code-divbeta
+#| eval: false
+#| echo: true
+#| code-fold: show
+#| warning: true
+
+bet <- 0.74
+
+# Values of beta1
+beta1 <- c(seq(0.05, bet, by = 0.01), seq(bet+1, 22, by = 2))
+
+# Fixed values of the other parameters
+beta2 <- bet
+Sigma <- matrix(c(1, 0.3, 0.3, 1), nrow = 2)
+
+# Kullback-Leibler divergence
+kullback_leibler <- sapply(beta1, function(b) {
+  kld(Sigma1 = Sigma, Sigma2 = Sigma,
+      beta1 = b, beta2 = beta2,
+      distribution = "mggd")
+})
+
+# Table of the results
+divbeta <- data.frame(
+  beta1 = beta1,
+  kullback_leibler = kullback_leibler
+)
+
+par(mar = c(4.1, 4.1, 3.1, 2.1))
+
+plot(kullback_leibler~beta1, data = divbeta, type = "b", pch = 16,
+     xlab = substitute(beta[1]), ylab = "Divergence", ylim = c(-0.1, 4))
+axis(side = 1, at = beta2, cex.axis = 1.2)
+
+```
+
+## Execution time {#sec-appenexetime}
+
+### Among the wanted precision {#sec-appendtime1}
+
+```{r}
+#| label: code-extime1
+#| eval: false
+#| echo: true
+#| code-fold: show
+
+# Successive values of the precision
+epsilon <- c(1, 1e-1, 1e-2, 1e-3, 1e-4, 1e-5, 1e-6, 1e-7, 1e-8, 1e-9,
+             1e-10, 1e-11, 1e-12, 1e-13, 1e-14, 1e-15)
+
+
+# Renyi divergence
+
+nu1 <- 2
+nu2 <- 4
+
+times <- iter <- numeric(4)
+
+Sigma1 = rbind(c(1, 0.6, 0.2), c(0.6, 1, 0.3), c(0.2, 0.3, 1))
+Sigma2 = rbind(c(1, 0.3, 0.1), c(0.3, 1, 0.4), c(0.1, 0.4, 1))
+
+times <- iter <- numeric(length = length(epsilon))
+for (i in 1:length(epsilon)) {
+  eps <- epsilon[i]
+  times[i] <- system.time(
+    d <- diststudent(nu1 = nu1, Sigma1 = Sigma1, nu2 = nu2, Sigma2 = Sigma2,
+                     dist = "renyi", bet = 0.25, eps = eps)
+  )["elapsed"]
+  iter[i] <- attr(d, "k")
+}
+
+renyi_exetime6 <- times[7]
+renyi_exetime <- data.frame(eps = epsilon, iter = iter,
+                            exetime = times, exetnorm = times/renyi_exetime6)
+
+
+# Kullback-Leibler divergence
+
+times <- iter <- numeric(length = length(epsilon))
+for (i in 1:length(epsilon)) {
+  eps <- epsilon[i]
+  times[i] <- system.time(
+    d <- kld(nu1 = nu1, Sigma1 = Sigma1, nu2 = nu2, Sigma2 = Sigma2,
+             distribution = "mtd", eps = eps)
+  )["elapsed"]
+  iter[i] <- attr(d, "k")
+}
+
+kl_exetime6 <- times[7]
+kl_exetime <- data.frame(eps = epsilon, iter = iter,
+                         exetime = times, exetnorm = times/kl_exetime6)
+
+
+# Save the execution times
+saveRDS(renyi_exetime, file = "exetimes/renyi_2_1.rds")
+saveRDS(kl_exetime, file = "exetimes/kl_2_1.rds")
+
+
+# Load the execution times
+renyi_exetime <- readRDS("exetimes/renyi_2_1.rds")
+kl_exetime <- readRDS("exetimes/kl_2_1.rds")
+
+if (knitr::is_html_output()) {
+  precision <- paste0("10<sup>", log10(renyi_exetime$eps), "</sup>")
+} else {
+  precision <- paste0("$10^{", log10(renyi_exetime$eps), "}$")
+}
+
+# Table of the execution times
+
+library(kableExtra)
+tbl <- data.frame(precision, renyi_exetime[c(2, 4)], kl_exetime[c(2, 4)]) %>%
+  kbl(
+    col.names = c("Precision", "Number of iterations", "Execution time",
+                  "Number of iterations", "Execution time"),
+    digits = c(16, 0, 4, 0, 4), escape = FALSE
+  ) %>%
+  add_header_above(c(" " = 1, "Rényi divergence of order β=0.25" = 2,
+                     "Kullback-Leibler divergence" = 2), escape = FALSE)
+tbl
+
+
+# Load the execution times
+renyi_exetime <- readRDS("exetimes/renyi_2_1.rds")
+kl_exetime <- readRDS("exetimes/kl_2_1.rds")
+
+# Plot the execution times among the wished precision
+plot(exetime~eps, data = renyi_exetime, type = "b", log = "x",
+     pch = 16, xaxt = "n", xlab = "Precision", ylab = "Execution time")
+axis(1, at = renyi_exetime$eps, labels = parse(text = paste0("10^", log10(renyi_exetime$eps))))
+plot(exetime~eps, data = kl_exetime, type = "b", log = "x",
+     pch = 16, xaxt = "n", xlab = "Precision", ylab = "Execution time")
+axis(1, at = kl_exetime$eps, labels = parse(text = paste0("10^", log10(kl_exetime$eps))))
+
+```
+
+### Among the dimension of the distributions {#sec-appendtime2}
+
+```{r}
+#| label: code-extime2
+#| eval: false
+#| echo: true
+#| code-fold: show
+
+nu1 <- 2
+nu2 <- 4
+
+# Renyi divergence
+
+times <- iter <- numeric(4)
+
+# Dim 1
+Sigma1 <- 0.2
+Sigma2 <- 0.3
+times[1] <- system.time(
+  d <- diststudent(nu1 = nu1, Sigma1 = Sigma1, nu2 = nu2, Sigma2 = Sigma2,
+                   dist = "renyi", bet = 0.25)
+)["elapsed"]
+iter[1] <- attr(d, "k")
+
+# Dim 2
+Sigma1 = rbind(c(1, 0.2), c(0.2, 1))
+Sigma2 = rbind(c(1, 0.3), c(0.3, 1))
+times[2] <- system.time(
+  d <- diststudent(nu1 = nu1, Sigma1 = Sigma1, nu2 = nu2, Sigma2 = Sigma2,
+                   dist = "renyi", bet = 0.25)
+)["elapsed"]
+iter[2] <- attr(d, "k")
+
+# Dim 3
+Sigma1 = rbind(c(1, 0.6, 0.2), c(0.6, 1, 0.3), c(0.2, 0.3, 1))
+Sigma2 = rbind(c(1, 0.3, 0.1), c(0.3, 1, 0.4), c(0.1, 0.4, 1))
+times[3] <- system.time(
+  d <- diststudent(nu1 = nu1, Sigma1 = Sigma1, nu2 = nu2, Sigma2 = Sigma2,
+                   dist = "renyi", bet = 0.25)
+)["elapsed"]
+iter[3] <- attr(d, "k")
+
+# Dim 4
+Sigma1 = rbind(c(1, 0.6, 0.2, 0), c(0.6, 1, 0.3, 0),
+               c(0.2, 0.3, 1, 0), c(0, 0, 0, 1))
+Sigma2 = rbind(c(1, 0.3, 0.1, 0), c(0.3, 1, 0.4, 0),
+               c(0.1, 0.4, 1, 0), c(0, 0, 0, 1))
+times[4] <- system.time(
+  d <- diststudent(nu1 = nu1, Sigma1 = Sigma1, nu2 = nu2, Sigma2 = Sigma2,
+                   dist = "renyi", bet = 0.25)
+)["elapsed"]
+iter[4] <- attr(d, "k")
+
+# Dim 5
+Sigma1 = rbind(c(1, 0.6, 0.2, 0, 0), c(0.6, 1, 0.3, 0, 0),
+               c(0.2, 0.3, 1, 0, 0), c(0, 0, 0, 1, 0),
+               c(0, 0, 0, 0, 1))
+Sigma2 = rbind(c(1, 0.3, 0.1, 0, 0), c(0.3, 1, 0.4, 0, 0),
+               c(0.1, 0.4, 1, 0, 0), c(0, 0, 0, 1, 0),
+               c(0, 0, 0, 0, 1))
+times[5] <- system.time(
+  d <- diststudent(nu1 = nu1, Sigma1 = Sigma1, nu2 = nu2, Sigma2 = Sigma2,
+                   dist = "renyi", bet = 0.25)
+)["elapsed"]
+iter[5] <- attr(d, "k")
+
+renyi_times <- times
+renyi_iter <- iter
+renyi_t3 <- renyi_times[3]
+renyi_exetime <- data.frame(dim = 1:5, iter = renyi_iter, exetime = renyi_times,
+                            normexet = renyi_times/renyi_t3)
+
+
+# Kullback-Leibler divergence
+
+nu1 <- 2
+nu2 <- 4
+
+times <- iter <- numeric(4)
+
+# Dim 1
+Sigma1 <- 0.2
+Sigma2 <- 0.3
+times[1] <- system.time(
+  d <- kld(nu1 = nu1, Sigma1 = Sigma1, nu2 = nu2, Sigma2 = Sigma2,
+           distribution = "mtd")
+)["elapsed"]
+iter[1] <- attr(d, "k")
+
+# Dim 2
+Sigma1 = rbind(c(1, 0.2), c(0.2, 1))
+Sigma2 = rbind(c(1, 0.3), c(0.3, 1))
+times[2] <- system.time(
+  d <- kld(nu1 = nu1, Sigma1 = Sigma1, nu2 = nu2, Sigma2 = Sigma2,
+           distribution = "mtd")
+)["elapsed"]
+iter[2] <- attr(d, "k")
+
+# Dim 3
+Sigma1 = rbind(c(1, 0.6, 0.2), c(0.6, 1, 0.3), c(0.2, 0.3, 1))
+Sigma2 = rbind(c(1, 0.3, 0.1), c(0.3, 1, 0.4), c(0.1, 0.4, 1))
+times[3] <- system.time(
+  d <- kld(nu1 = nu1, Sigma1 = Sigma1, nu2 = nu2, Sigma2 = Sigma2,
+           distribution = "mtd")
+)["elapsed"]
+iter[3] <- attr(d, "k")
+
+# Dim 4
+Sigma1 = rbind(c(1, 0.6, 0.2, 0), c(0.6, 1, 0.3, 0),
+               c(0.2, 0.3, 1, 0), c(0, 0, 0, 1))
+Sigma2 = rbind(c(1, 0.3, 0.1, 0), c(0.3, 1, 0.4, 0),
+               c(0.1, 0.4, 1, 0), c(0, 0, 0, 1))
+times[4] <- system.time(
+  d <- kld(nu1 = nu1, Sigma1 = Sigma1, nu2 = nu2, Sigma2 = Sigma2,
+           distribution = "mtd")
+)["elapsed"]
+iter[4] <- attr(d, "k")
+
+# Dim 5
+Sigma1 = rbind(c(1, 0.6, 0.2, 0, 0), c(0.6, 1, 0.3, 0, 0),
+               c(0.2, 0.3, 1, 0, 0), c(0, 0, 0, 1, 0),
+               c(0, 0, 0, 0, 1))
+Sigma2 = rbind(c(1, 0.3, 0.1, 0, 0), c(0.3, 1, 0.4, 0, 0),
+               c(0.1, 0.4, 1, 0, 0), c(0, 0, 0, 1, 0),
+               c(0, 0, 0, 0, 1))
+times[5] <- system.time(
+  d <- kld(nu1 = nu1, Sigma1 = Sigma1, nu2 = nu2, Sigma2 = Sigma2,
+           distribution = "mtd")
+)["elapsed"]
+iter[5] <- attr(d, "k")
+
+kl_times <- times
+kl_iter <- iter
+kl_t3 <- kl_times[3]
+kl_exetime <- data.frame(dim = 1:5, iter = kl_iter, exetime = kl_times,
+                         normexet = kl_times/kl_t3)
+
+
+# Save the execution times
+saveRDS(renyi_exetime, file = "exetimes/renyi_2_2.rds")
+saveRDS(kl_exetime, file = "exetimes/kl_2_2.rds")
+
+
+# Load the execution times
+renyi_exetime <- readRDS("exetimes/renyi_2_2.rds")
+kl_exetime <- readRDS("exetimes/kl_2_2.rds")
+
+# Display the table of execution time among the dimension
+library(kableExtra)
+merge(renyi_exetime[c(1, 2, 4)], kl_exetime[c(1, 2, 4)], by = "dim") %>%
+  kbl(col.names = c("Dimension", "Number of iterations", "Execution time",
+                    "Number of iterations", "Execution time"),
+      digits = c(0, 0, 3, 0, 3)) %>%
+  add_header_above(c(" " = 1, "Rényi divergence of order β=0.25" = 2,
+                     "Kullback-Leibler divergence" = 2), escape = FALSE)
+
+```
+
+### Among the divergence {#sec-appendtime3}
+
+```{r}
+#| label: code-extime3
+#| eval: false
+#| echo: true
+#| code-fold: show
+
+# Parameters
+nu <- 2
+Sigma <- rbind(c(1, 0.3, 0.1), c(0.3, 1, 0.4), c(0.1, 0.4, 1))
+
+# Values of the proportionality coefficient
+S <- c(seq(0.1, 1, by = 0.1), seq(2, 50, by = 2))
+
+
+# Rényi divergence
+renyitimes <- iter <- renyidiv <- numeric(length = length(S))
+for (i in 1:length(S)) {
+  s <- S[i]
+  renyitimes[i] <- system.time(
+    d <- diststudent(nu1 = nu, Sigma1 = s*Sigma, nu2 = nu, Sigma2 = Sigma,
+                     dist = "renyi", bet = 0.25)
+  )["elapsed"]
+  renyidiv[i] <- d
+  iter[i] <- attr(d, "k")
+}
+renyi <- data.frame(s = S, renyi_iter = iter, renyi_exetime = renyitimes,
+                    renyi_div = renyidiv)
+
+
+# Kullback-Leibler divergence
+kltimes <- iter <- kldiv <- numeric(length = length(S))
+for (i in 1:length(S)) {
+  s <- S[i]
+  kltimes[i] <- system.time(
+    d <- kld(nu1 = nu, Sigma1 = s*Sigma, nu2 = nu, Sigma2 = Sigma,
+             distribution = "mtd")
+  )["elapsed"]
+  kldiv[i] <- d
+  iter[i] <- attr(d, "k")
+}
+kl <- data.frame(s = S, kl_iter = iter, kl_exetime = kltimes,
+                 kl_div = kldiv)
+
+
+exetime <- merge(renyi, kl)
+
+
+# Save the execution times
+saveRDS(exetime, file = "exetimes/renyikl_2_3.rds")
+
+```
+
