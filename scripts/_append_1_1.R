@@ -58,6 +58,8 @@ divnu <- data.frame(
   kullback_leibler = kullback_leibler
 )
 
+par(mar = c(4.1, 4.1, 3.1, 2.1))
+
 plot(renyi_0_25~nu1, data = divnu, type = "b", pch = 16,
      xlab = substitute(nu[1]), ylab = "Divergence", ylim = c(0, 0.6))
 axis(side = 1, at = nu2, cex = 1.2)

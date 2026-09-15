@@ -64,6 +64,8 @@ divS1 <- data.frame(
   kullback_leibler = kullback_leibler
 )
 
+par(mar = c(4.1, 4.1, 3.1, 2.1))
+
 plot(renyi_0_25~s1, data = divS1, type = "b", pch = 16,
      xlab = substitute(Sigma[1][1]), ylab = "Divergence")
 axis(side = 1, at = Sigma2[1, 1], cex.axis = 1.2)

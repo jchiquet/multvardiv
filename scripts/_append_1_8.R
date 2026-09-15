@@ -20,6 +20,8 @@ divbeta <- data.frame(
   kullback_leibler = kullback_leibler
 )
 
+par(mar = c(4.1, 4.1, 3.1, 2.1))
+
 plot(kullback_leibler~beta1, data = divbeta, type = "b", pch = 16,
      xlab = substitute(beta[1]), ylab = "Divergence", ylim = c(-0.1, 4))
 axis(side = 1, at = beta2, cex.axis = 1.2)

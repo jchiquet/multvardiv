@@ -45,6 +45,8 @@ divSigma <- data.frame(
   kullback_leibler = kullback_leibler
 )
 
+par(mar = c(4.1, 4.1, 3.1, 2.1))
+
 plot(renyi_0_25~facteur, data = divSigma, type = "b", pch = 16,
      xlab = "s", ylab = "Divergence")
 axis(side = 1, at = 1, labels = 1, cex.axis = 1.2)
